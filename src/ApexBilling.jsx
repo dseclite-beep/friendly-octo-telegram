@@ -396,6 +396,66 @@ export default function ApexBilling() {
     ? logs.filter(log => !log.msg.toLowerCase().includes("rate limit") && !log.msg.toLowerCase().includes("failed login"))
     : logs;
 
+  // User-friendly formatter to translate raw developer logs into readable statements
+  const formatLogItem = (log) => {
+    const msg = log.msg;
+    const lower = msg.toLowerCase();
+    
+    let title = "Security Event";
+    let desc = msg;
+    let type = "info"; // info, success, warning, error
+    let icon = "🛡️";
+
+    if (lower.includes("user auth success")) {
+      title = "Session Established";
+      type = "success";
+      icon = "🔑";
+      const match = msg.match(/success:\s*([^\s(]+)/);
+      const email = match ? match[1] : "user";
+      desc = `Operator (${email}) signed in successfully.`;
+    } else if (lower.includes("failed login")) {
+      title = "Blocked Login Attempt";
+      type = "warning";
+      icon = "⚠️";
+      const match = msg.match(/email:\s*([^\s]+)/);
+      const email = match ? match[1] : "unknown";
+      desc = `Failed sign-in attempt detected for: ${email}`;
+    } else if (lower.includes("created invoice")) {
+      title = "New Invoice Registered";
+      type = "success";
+      icon = "📝";
+      const match = msg.match(/invoice\s*(INV-\d+)/i);
+      const invNo = match ? match[1] : "invoice";
+      desc = `Invoice ${invNo} added to the ledger databases.`;
+    } else if (lower.includes("deleted invoice")) {
+      title = "Invoice Record Deleted";
+      type = "error";
+      icon = "🗑️";
+      const match = msg.match(/invoice\s*(INV-\d+)/i);
+      const invNo = match ? match[1] : "invoice";
+      desc = `Invoice ${invNo} permanently purged by administrator.`;
+    } else if (lower.includes("profile updated")) {
+      title = "Credentials Modified";
+      type = "info";
+      icon = "👤";
+      const match = msg.match(/for\s*([^\s]+)/);
+      const email = match ? match[1] : "user";
+      desc = `Account details updated for ${email}.`;
+    } else if (lower.includes("settings updated")) {
+      title = "Configurations Adjusted";
+      type = "info";
+      icon = "⚙️";
+      desc = "Billing terms and currency parameters modified.";
+    } else if (lower.includes("rate limit")) {
+      title = "Traffic Throttle Alert";
+      type = "warning";
+      icon = "🚦";
+      desc = "API traffic threshold approached on system gateway.";
+    }
+
+    return { title, desc, type, icon };
+  };
+
   // Render Login screen
   if (screen === "login") {
     return (
@@ -435,22 +495,42 @@ export default function ApexBilling() {
           </form>
 
           <div className="mock-gateway">
-            <h3>Mock Authorization Gateway</h3>
-            <p className="gateway-desc">Select a profile to bypass manual entry (retrieved from backend database):</p>
-            <div className="profiles-grid">
+            <h3>Mock Access Gateway</h3>
+            <p className="gateway-desc">Select a tester profile to dynamically simulate billing roles:</p>
+            <div className="profiles-layout-grid">
               {mockProfiles.length > 0 ? (
-                mockProfiles.map((p, idx) => (
-                  <button 
-                    key={idx} 
-                    className={`profile-shortcut-btn ${p.role === "manager" ? "recommended" : ""}`}
-                    onClick={() => handleLogin(null, p)}
-                  >
-                    {p.name} ({p.role.toUpperCase()})
-                  </button>
-                ))
+                mockProfiles.map((p, idx) => {
+                  let roleDesc = "";
+                  let badgeColor = "";
+                  if (p.role === "admin") {
+                    roleDesc = "Full administrative ledger control. Delete invoices, write records, review security logs.";
+                    badgeColor = "var(--color-error)";
+                  } else if (p.role === "manager") {
+                    roleDesc = "Financial projection workspace. Run subscription MRR analytics & projection simulators.";
+                    badgeColor = "var(--accent-green-primary)";
+                  } else if (p.role === "support") {
+                    roleDesc = "Customer service desk. Register customer invoices, sync helpdesk metrics, view logs.";
+                    badgeColor = "var(--accent-green-light)";
+                  }
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`gateway-profile-card ${p.role === "manager" ? "highlighted" : ""}`}
+                      onClick={() => handleLogin(null, p)}
+                    >
+                      <div className="gateway-profile-header">
+                        <span className="gateway-profile-name">{p.name}</span>
+                        <span className="gateway-profile-badge" style={{ backgroundColor: badgeColor }}>{p.role.toUpperCase()}</span>
+                      </div>
+                      <p className="gateway-profile-desc">{roleDesc}</p>
+                      <div className="gateway-profile-action">Sign In as {p.name.split(" ")[0]} &rarr;</div>
+                    </div>
+                  );
+                })
               ) : (
-                <div style={{ fontSize: "0.72rem", color: "var(--txt-muted)", textAlign: "center", padding: "10px" }}>
-                  Establishing connection to profile catalog...
+                <div style={{ fontSize: "0.72rem", color: "var(--txt-muted)", textAlign: "center", padding: "20px" }}>
+                  Establishing connection to access database...
                 </div>
               )}
             </div>
@@ -538,18 +618,22 @@ export default function ApexBilling() {
                 <div className="metric-card tickets">
                   <div className="m-label">Active Support Tickets</div>
                   <div className="m-value">{stats.activeTickets}</div>
+                  <div className="m-help">Open customer tickets in Zendesk</div>
                 </div>
                 <div className="metric-card sla">
                   <div className="m-label">Avg Response SLA</div>
                   <div className="m-value">{stats.avgResponseTime}</div>
+                  <div className="m-help">Average SLA response delay</div>
                 </div>
                 <div className="metric-card csat">
                   <div className="m-label">CSAT Satisfaction</div>
                   <div className="m-value">{stats.csat}</div>
+                  <div className="m-help">Customer satisfaction rating</div>
                 </div>
                 <div className="metric-card inquiries">
                   <div className="m-label">Billing Inquiries</div>
                   <div className="m-value">{stats.billingInquiries}</div>
+                  <div className="m-help">Pending customer ledger tickets</div>
                 </div>
               </div>
             ) : (
@@ -557,18 +641,22 @@ export default function ApexBilling() {
                 <div className="metric-card revenue">
                   <div className="m-label">Total Revenue (Paid)</div>
                   <div className="m-value">{sym}{Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="m-help">Settled earnings from paid ledger invoices</div>
                 </div>
                 <div className="metric-card subscriptions">
                   <div className="m-label">Active Subscriptions</div>
                   <div className="m-value">{stats.activeSubscriptions || 0}</div>
+                  <div className="m-help">Active accounts on billing plans</div>
                 </div>
                 <div className="metric-card outstanding">
                   <div className="m-label">Outstanding Invoices</div>
                   <div className="m-value">{sym}{Number(stats.outstandingAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="m-help">Unpaid & pending balance in queue</div>
                 </div>
                 <div className="metric-card churn">
                   <div className="m-label">System Churn Rate</div>
                   <div className="m-value">{stats.churnRate}</div>
+                  <div className="m-help">Monthly customer cancellation average</div>
                 </div>
               </div>
             )}
@@ -740,19 +828,27 @@ export default function ApexBilling() {
 
                     <div className="audit-card card">
                       <div className="panel-header">
-                        <h2>Security & Audit Telemetry</h2>
+                        <h2>Security & Audit Activity</h2>
                       </div>
-                      <div className="log-stream-wrapper">
+                      <div className="log-stream-wrapper" style={{ minHeight: 280, maxHeight: 280 }}>
                         {displayLogs.length > 0 ? (
-                          displayLogs.map((log, idx) => (
-                            <div key={idx} className="log-line">
-                              <span className="log-time">{log.ts}</span>
-                              <span className={`log-level ${log.lvl.toLowerCase()}`}>[{log.lvl}]</span>
-                              <span className="log-text">{log.msg}</span>
-                            </div>
-                          ))
+                          [...displayLogs].reverse().map((log, idx) => {
+                            const item = formatLogItem(log);
+                            return (
+                              <div key={idx} className={`log-activity-card ${item.type}`}>
+                                <div className="log-activity-icon">{item.icon}</div>
+                                <div className="log-activity-body">
+                                  <div className="log-activity-header">
+                                    <span className="log-activity-title">{item.title}</span>
+                                    <span className="log-activity-time">{log.ts}</span>
+                                  </div>
+                                  <p className="log-activity-desc">{item.desc}</p>
+                                </div>
+                              </div>
+                            );
+                          })
                         ) : (
-                          <div className="empty-logs">No telemetry data streamed.</div>
+                          <div className="empty-logs">No system activity logged.</div>
                         )}
                       </div>
                     </div>
@@ -772,317 +868,325 @@ export default function ApexBilling() {
                             <span className="tier-label">Basic Plan ($49/mo)</span>
                             <span className="tier-stats">{basicCount} users ({basicPct}%)</span>
                           </div>
-                      <div className="tier-meter-bar">
-                        <div className="tier-meter-fill" style={{ width: `${basicPct}%` }}></div>
+                          <div className="tier-meter-bar">
+                            <div className="tier-meter-fill" style={{ width: `${basicPct}%` }}></div>
+                          </div>
+                        </div>
+                        <div className="tier-item">
+                          <div className="tier-header-info">
+                            <span className="tier-label">Pro Plan ($299/mo)</span>
+                            <span className="tier-stats">{proCount} users ({proPct}%)</span>
+                          </div>
+                          <div className="tier-meter-bar">
+                            <div className="tier-meter-fill" style={{ width: `${proPct}%` }}></div>
+                          </div>
+                        </div>
+                        <div className="tier-item">
+                          <div className="tier-header-info">
+                            <span className="tier-label">Enterprise Plan ($1,200/mo)</span>
+                            <span className="tier-stats">{entCount} users ({entPct}%)</span>
+                          </div>
+                          <div className="tier-meter-bar">
+                            <div className="tier-meter-fill" style={{ width: `${entPct}%` }}></div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="tier-item">
-                      <div className="tier-header-info">
-                        <span className="tier-label">Pro Plan ($299/mo)</span>
-                        <span className="tier-stats">{proCount} users ({proPct}%)</span>
-                      </div>
-                      <div className="tier-meter-bar">
-                        <div className="tier-meter-fill" style={{ width: `${proPct}%` }}></div>
-                      </div>
-                    </div>
-                    <div className="tier-item">
-                      <div className="tier-header-info">
-                        <span className="tier-label">Enterprise Plan ($1,200/mo)</span>
-                        <span className="tier-stats">{entCount} users ({entPct}%)</span>
-                      </div>
-                      <div className="tier-meter-bar">
-                        <div className="tier-meter-fill" style={{ width: `${entPct}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="card projection-card">
-                  <h2>Financial MRR Simulator</h2>
-                  <p className="card-desc">Simulate revenue growth by adding new subscribers</p>
-                  
-                  <div className="slider-container">
-                    <label className="form-group label">Add Projected Subscribers: <strong>+{projectedNewSubs}</strong></label>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="100" 
-                      value={projectedNewSubs} 
-                      onChange={(e) => setProjectedNewSubs(parseInt(e.target.value))} 
-                      className="slider-control"
-                    />
-                  </div>
-
-                  <div className="projection-results">
-                    <div className="proj-item">
-                      <span className="proj-label">Current Revenue</span>
-                      <span className="proj-val">{sym}{Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="proj-item">
-                      <span className="proj-label">Est. Value (Avg: {sym}{Math.round(averageAmount)}/sub)</span>
-                      <span className="proj-val">+{sym}{Number(projectedNewSubs * averageAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="proj-item">
-                      <span className="proj-label">Projected Monthly Revenue</span>
-                      <span className="proj-val highlight">{sym}{Number(stats.totalRevenue + (projectedNewSubs * averageAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* SUPPORT VIEW */}
-            {user?.role === "support" && (
-              <>
-                <div className="card support-welcome-card">
-                  <h3>Support Center Workspace</h3>
-                  <p>Logged in as Customer Support. Use this workspace to review billing status and resolve customer inquiries. You can add customer invoices using the form below.</p>
-                  <div className="support-actions-row">
-                    <button className="support-action-btn" onClick={() => alert("Payment reminder emails dispatched to all pending accounts!")}>Send Reminders</button>
-                    <button className="support-action-btn" onClick={() => alert("Ticket cache purged. Syncing with ZenDesk/Intercom...")}>Sync Helpdesk</button>
-                  </div>
-                </div>
-
-                <div className="create-invoice-card card">
-                  <h2>Customer Invoice Creator</h2>
-                  <p className="card-desc">Log a customer transaction into the ledger database</p>
-                  
-                  <form onSubmit={handleCreateInvoice}>
-                    <div className="form-group">
-                      <label>Customer Name</label>
-                      <input 
-                        type="text" 
-                        placeholder="Acme Corp" 
-                        value={newCust} 
-                        onChange={(e) => setNewCust(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Billing Email</label>
-                      <input 
-                        type="email" 
-                        placeholder="finance@acme.com" 
-                        value={newEmail} 
-                        onChange={(e) => setNewEmail(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group half">
-                        <label>Plan Tier</label>
-                        <select value={newPlan} onChange={(e) => setNewPlan(e.target.value)}>
-                          <option value="Basic">Basic</option>
-                          <option value="Pro">Pro</option>
-                          <option value="Enterprise">Enterprise</option>
-                        </select>
-                      </div>
-                      <div className="form-group half">
-                        <label>Amount ({sym})</label>
+                    <div className="card projection-card">
+                      <h2>Financial MRR Simulator</h2>
+                      <p className="card-desc">Simulate revenue growth by adding new subscribers</p>
+                      
+                      <div className="slider-container">
+                        <label className="form-group label">Add Projected Subscribers: <strong>+{projectedNewSubs}</strong></label>
                         <input 
-                          type="number" 
-                          placeholder="299.00" 
-                          value={newAmount} 
-                          onChange={(e) => setNewAmount(e.target.value)} 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          value={projectedNewSubs} 
+                          onChange={(e) => setProjectedNewSubs(parseInt(e.target.value))} 
+                          className="slider-control"
                         />
                       </div>
-                    </div>
-                    <div className="form-group">
-                      <label>Payment Status</label>
-                      <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-                        <option value="paid">Paid</option>
-                        <option value="unpaid">Unpaid</option>
-                        <option value="pending">Pending</option>
-                      </select>
-                    </div>
 
-                    {formMsg && (
-                      <div className={`form-feedback ${formMsg.startsWith("Success") ? "success" : "error"}`}>
-                        {formMsg}
-                      </div>
-                    )}
-
-                    <button type="submit" className="submit-invoice-btn">Submit Ledger Record</button>
-                  </form>
-                </div>
-
-                <div className="audit-card card">
-                  <div className="panel-header">
-                    <h2>Customer Operations Log</h2>
-                  </div>
-                  <div className="log-stream-wrapper">
-                    {displayLogs.length > 0 ? (
-                      displayLogs.map((log, idx) => (
-                        <div key={idx} className="log-line">
-                          <span className="log-time">{log.ts}</span>
-                          <span className={`log-level ${log.lvl.toLowerCase()}`}>[{log.lvl}]</span>
-                          <span className="log-text">{log.msg}</span>
+                      <div className="projection-results">
+                        <div className="proj-item">
+                          <span className="proj-label">Current Revenue</span>
+                          <span className="proj-val">{sym}{Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                      ))
-                    ) : (
-                      <div className="empty-logs">No telemetry data streamed.</div>
-                    )}
+                        <div className="proj-item">
+                          <span className="proj-label">Est. Value (Avg: {sym}{Math.round(averageAmount)}/sub)</span>
+                          <span className="proj-val">+{sym}{Number(projectedNewSubs * averageAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="proj-item">
+                          <span className="proj-label">Projected Monthly Revenue</span>
+                          <span className="proj-val highlight">{sym}{Number(stats.totalRevenue + (projectedNewSubs * averageAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* SUPPORT VIEW */}
+                {user?.role === "support" && (
+                  <>
+                    <div className="card support-welcome-card">
+                      <h3>Support Center Workspace</h3>
+                      <p>Logged in as Customer Support. Use this workspace to review billing status and resolve customer inquiries. You can add customer invoices using the form below.</p>
+                      <div className="support-actions-row">
+                        <button className="support-action-btn" onClick={() => alert("Payment reminder emails dispatched to all pending accounts!")}>Send Reminders</button>
+                        <button className="support-action-btn" onClick={() => alert("Ticket cache purged. Syncing with ZenDesk/Intercom...")}>Sync Helpdesk</button>
+                      </div>
+                    </div>
+
+                    <div className="create-invoice-card card">
+                      <h2>Customer Invoice Creator</h2>
+                      <p className="card-desc">Log a customer transaction into the ledger database</p>
+                      
+                      <form onSubmit={handleCreateInvoice}>
+                        <div className="form-group">
+                          <label>Customer Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="Acme Corp" 
+                            value={newCust} 
+                            onChange={(e) => setNewCust(e.target.value)} 
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Billing Email</label>
+                          <input 
+                            type="email" 
+                            placeholder="finance@acme.com" 
+                            value={newEmail} 
+                            onChange={(e) => setNewEmail(e.target.value)} 
+                          />
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group half">
+                            <label>Plan Tier</label>
+                            <select value={newPlan} onChange={(e) => setNewPlan(e.target.value)}>
+                              <option value="Basic">Basic</option>
+                              <option value="Pro">Pro</option>
+                              <option value="Enterprise">Enterprise</option>
+                            </select>
+                          </div>
+                          <div className="form-group half">
+                            <label>Amount ({sym})</label>
+                            <input 
+                              type="number" 
+                              placeholder="299.00" 
+                              value={newAmount} 
+                              onChange={(e) => setNewAmount(e.target.value)} 
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group">
+                          <label>Payment Status</label>
+                          <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="pending">Pending</option>
+                          </select>
+                        </div>
+
+                        {formMsg && (
+                          <div className={`form-feedback ${formMsg.startsWith("Success") ? "success" : "error"}`}>
+                            {formMsg}
+                          </div>
+                        )}
+
+                        <button type="submit" className="submit-invoice-btn">Submit Ledger Record</button>
+                      </form>
+                    </div>
+
+                    <div className="audit-card card">
+                      <div className="panel-header">
+                        <h2>Customer Operations Log</h2>
+                      </div>
+                      <div className="log-stream-wrapper" style={{ minHeight: 280, maxHeight: 280 }}>
+                        {displayLogs.length > 0 ? (
+                          [...displayLogs].reverse().map((log, idx) => {
+                            const item = formatLogItem(log);
+                            return (
+                              <div key={idx} className={`log-activity-card ${item.type}`}>
+                                <div className="log-activity-icon">{item.icon}</div>
+                                <div className="log-activity-body">
+                                  <div className="log-activity-header">
+                                    <span className="log-activity-title">{item.title}</span>
+                                    <span className="log-activity-time">{log.ts}</span>
+                                  </div>
+                                  <p className="log-activity-desc">{item.desc}</p>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="empty-logs">No customer activity logged.</div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* TAB 2: USER PROFILE VIEW */}
+        {activeTab === "profile" && (
+          <div className="profile-view-grid">
+            {/* Left Side: Avatar Card */}
+            <div className="profile-avatar-card card">
+              <div className="profile-avatar-circle">
+                {user?.av || (user?.name ? user.name.split(" ").map(n => n[0]).join("") : "U")}
+              </div>
+              <h3>{user?.name}</h3>
+              <p>{user?.role}</p>
+
+              <div className="profile-details-list">
+                <div className="profile-detail-item">
+                  <span className="profile-detail-label">Status</span>
+                  <span className="profile-detail-value" style={{ color: "var(--color-success)" }}>
+                    {user?.status ? user.status.toUpperCase() : "ACTIVE"}
+                  </span>
+                </div>
+                <div className="profile-detail-item">
+                  <span className="profile-detail-label">Email Address</span>
+                  <span className="profile-detail-value">{user?.email}</span>
+                </div>
+                <div className="profile-detail-item">
+                  <span className="profile-detail-label">Joined On</span>
+                  <span className="profile-detail-value">{user?.joined || "Jan 1, 2026"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Edit Profile Form */}
+            <div className="card">
+              <h2>Profile Management & Security</h2>
+              <p className="card-desc">Update your display information and console authorization passcode</p>
+              
+              <form onSubmit={handleSaveProfile} style={{ marginTop: 20 }}>
+                <div className="form-group">
+                  <label>Full Display Name</label>
+                  <input 
+                    type="text" 
+                    value={profileName} 
+                    onChange={(e) => setProfileName(e.target.value)} 
+                    placeholder="Name"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Console Passcode (Leave blank to keep current)</label>
+                  <input 
+                    type="password" 
+                    value={profilePass} 
+                    onChange={(e) => setProfilePass(e.target.value)} 
+                    placeholder="••••••••••••" 
+                  />
+                </div>
+
+                {profileMsg && (
+                  <div className={`form-feedback ${profileMsg.startsWith("Success") ? "success" : "error"}`}>
+                    {profileMsg}
+                  </div>
+                )}
+
+                <button type="submit" className="submit-invoice-btn" style={{ maxWidth: 200 }}>
+                  Update Credentials
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: APP SETTINGS VIEW */}
+        {activeTab === "settings" && (
+          <div className="card" style={{ maxWidth: 900, margin: "0 auto", textAlign: "left" }}>
+            <h2>System Configuration Workspace</h2>
+            <p className="card-desc">Configure billing terms, payment rules, and SLA tracking parameters. Values are loaded from and stored directly in the database.</p>
+            
+            <form onSubmit={handleSaveSettings} style={{ marginTop: 24 }}>
+              {/* Section 1: Billing Currency */}
+              <div className="settings-section">
+                <h3>Billing Currency</h3>
+                <p className="sec-desc">Set the system-wide currency for calculating invoices and displaying stats panels</p>
+                <div className="form-group" style={{ maxWidth: 300 }}>
+                  <select 
+                    value={settings.currency} 
+                    onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
+                  >
+                    <option value="USD">USD ($ - United States Dollar)</option>
+                    <option value="EUR">EUR (€ - Euro)</option>
+                    <option value="GBP">GBP (£ - British Pound Sterling)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Section 2: Due Terms & Automatic Reminders */}
+              <div className="settings-section">
+                <h3>Standard Billing Due Terms</h3>
+                <p className="sec-desc">Define the default duration (in days) given to customers to fulfill outstanding invoices</p>
+                <div className="form-group" style={{ maxWidth: 200 }}>
+                  <label>Term Duration (Days)</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="90" 
+                    value={settings.dueDays} 
+                    onChange={(e) => setSettings({ ...settings, dueDays: parseInt(e.target.value) || 14 })}
+                  />
+                </div>
+
+                {/* Toggle Switch */}
+                <div className="toggle-setting-row">
+                  <div className="toggle-setting-info">
+                    <label>Automatic Payment Reminders</label>
+                    <span>Automatically dispatch reminder alerts to unpaid invoices 3 days before due dates</span>
+                  </div>
+                  <div className="toggle-switch-wrapper">
+                    <input 
+                      type="checkbox" 
+                      className="toggle-switch-input" 
+                      id="autoRemindersToggle"
+                      checked={settings.autoReminders}
+                      onChange={(e) => setSettings({ ...settings, autoReminders: e.target.checked })}
+                    />
+                    <label className="toggle-switch-slider" htmlFor="autoRemindersToggle"></label>
                   </div>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      </>
-    )}
-
-    {/* TAB 2: USER PROFILE VIEW */}
-    {activeTab === "profile" && (
-      <div className="profile-view-grid">
-        {/* Left Side: Avatar Card */}
-        <div className="profile-avatar-card card">
-          <div className="profile-avatar-circle">
-            {user?.av || (user?.name ? user.name.split(" ").map(n => n[0]).join("") : "U")}
-          </div>
-          <h3>{user?.name}</h3>
-          <p>{user?.role}</p>
-
-          <div className="profile-details-list">
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">Status</span>
-              <span className="profile-detail-value" style={{ color: "var(--color-success)" }}>
-                {user?.status ? user.status.toUpperCase() : "ACTIVE"}
-              </span>
-            </div>
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">Email Address</span>
-              <span className="profile-detail-value">{user?.email}</span>
-            </div>
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">Joined On</span>
-              <span className="profile-detail-value">{user?.joined || "Jan 1, 2026"}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Edit Profile Form */}
-        <div className="card">
-          <h2>Profile Management & Security</h2>
-          <p className="card-desc">Update your display information and console authorization passcode</p>
-          
-          <form onSubmit={handleSaveProfile} style={{ marginTop: 20 }}>
-            <div className="form-group">
-              <label>Full Display Name</label>
-              <input 
-                type="text" 
-                value={profileName} 
-                onChange={(e) => setProfileName(e.target.value)} 
-                placeholder="Name"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Console Passcode (Leave blank to keep current)</label>
-              <input 
-                type="password" 
-                value={profilePass} 
-                onChange={(e) => setProfilePass(e.target.value)} 
-                placeholder="••••••••••••" 
-              />
-            </div>
-
-            {profileMsg && (
-              <div className={`form-feedback ${profileMsg.startsWith("Success") ? "success" : "error"}`}>
-                {profileMsg}
               </div>
-            )}
 
-            <button type="submit" className="submit-invoice-btn" style={{ maxWidth: 200 }}>
-              Update Credentials
-            </button>
-          </form>
-        </div>
-      </div>
-    )}
-
-    {/* TAB 3: APP SETTINGS VIEW */}
-    {activeTab === "settings" && (
-      <div className="card" style={{ maxWidth: 900, margin: "0 auto", textAlign: "left" }}>
-        <h2>System Configuration Workspace</h2>
-        <p className="card-desc">Configure billing terms, payment rules, and SLA tracking parameters. Values are loaded from and stored directly in the database.</p>
-        
-        <form onSubmit={handleSaveSettings} style={{ marginTop: 24 }}>
-          {/* Section 1: Billing Currency */}
-          <div className="settings-section">
-            <h3>Billing Currency</h3>
-            <p className="sec-desc">Set the system-wide currency for calculating invoices and displaying stats panels</p>
-            <div className="form-group" style={{ maxWidth: 300 }}>
-              <select 
-                value={settings.currency} 
-                onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-              >
-                <option value="USD">USD ($ - United States Dollar)</option>
-                <option value="EUR">EUR (€ - Euro)</option>
-                <option value="GBP">GBP (£ - British Pound Sterling)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Section 2: Due Terms & Automatic Reminders */}
-          <div className="settings-section">
-            <h3>Standard Billing Due Terms</h3>
-            <p className="sec-desc">Define the default duration (in days) given to customers to fulfill outstanding invoices</p>
-            <div className="form-group" style={{ maxWidth: 200 }}>
-              <label>Term Duration (Days)</label>
-              <input 
-                type="number" 
-                min="1" 
-                max="90" 
-                value={settings.dueDays} 
-                onChange={(e) => setSettings({ ...settings, dueDays: parseInt(e.target.value) || 14 })}
-              />
-            </div>
-
-            {/* Toggle Switch */}
-            <div className="toggle-setting-row">
-              <div className="toggle-setting-info">
-                <label>Automatic Payment Reminders</label>
-                <span>Automatically dispatch reminder alerts to unpaid invoices 3 days before due dates</span>
+              {/* Section 3: SLA Targets */}
+              <div className="settings-section">
+                <h3>Support Service Level Agreement (SLA)</h3>
+                <p className="sec-desc">Configure customer support response limits. Shifts SLA stats displays dynamically.</p>
+                <div className="form-group" style={{ maxWidth: 200 }}>
+                  <label>SLA First Response Target (Minutes)</label>
+                  <input 
+                    type="number" 
+                    min="2" 
+                    max="60" 
+                    value={settings.supportTargetMinutes} 
+                    onChange={(e) => setSettings({ ...settings, supportTargetMinutes: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
               </div>
-              <div className="toggle-switch-wrapper">
-                <input 
-                  type="checkbox" 
-                  className="toggle-switch-input" 
-                  id="autoRemindersToggle"
-                  checked={settings.autoReminders}
-                  onChange={(e) => setSettings({ ...settings, autoReminders: e.target.checked })}
-                />
-                <label className="toggle-switch-slider" htmlFor="autoRemindersToggle"></label>
-              </div>
-            </div>
+
+              {settingsMsg && (
+                <div className={`form-feedback ${settingsMsg.startsWith("Success") ? "success" : "error"}`}>
+                  {settingsMsg}
+                </div>
+              )}
+
+              <button type="submit" className="submit-invoice-btn" style={{ maxWidth: 200 }}>
+                Save Settings Records
+              </button>
+            </form>
           </div>
-
-          {/* Section 3: SLA Targets */}
-          <div className="settings-section">
-            <h3>Support Service Level Agreement (SLA)</h3>
-            <p className="sec-desc">Configure customer support response limits. Shifts SLA stats displays dynamically.</p>
-            <div className="form-group" style={{ maxWidth: 200 }}>
-              <label>SLA First Response Target (Minutes)</label>
-              <input 
-                type="number" 
-                min="2" 
-                max="60" 
-                value={settings.supportTargetMinutes} 
-                onChange={(e) => setSettings({ ...settings, supportTargetMinutes: parseInt(e.target.value) || 10 })}
-              />
-            </div>
-          </div>
-
-          {settingsMsg && (
-            <div className={`form-feedback ${settingsMsg.startsWith("Success") ? "success" : "error"}`}>
-              {settingsMsg}
-            </div>
-          )}
-
-          <button type="submit" className="submit-invoice-btn" style={{ maxWidth: 200 }}>
-            Save Settings Records
-          </button>
-        </form>
-      </div>
-    )}
+        )}
       </main>
 
       <footer className="dash-footer">
