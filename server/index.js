@@ -193,6 +193,70 @@ app.get("/api/auth/me", authenticateToken, (req, res) => {
   res.json({ user: safeUser });
 });
 
+// Profiles lookup for the login gateway screen
+app.get("/api/auth/profiles", async (req, res) => {
+  try {
+    const users = await db.users.find();
+    const profiles = users.map(u => ({ name: u.name, email: u.email, pw: u.pw, role: u.role }));
+    res.json(profiles);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load profiles." });
+  }
+});
+
+// Settings Management: GET
+app.get("/api/settings", authenticateToken, async (req, res) => {
+  try {
+    const config = await db.settings.findOne(s => s.id === 1);
+    res.json(config);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load settings." });
+  }
+});
+
+// Settings Management: POST
+app.post("/api/settings", authenticateToken, async (req, res) => {
+  const { currency, dueDays, autoReminders, supportTargetMinutes } = req.body;
+  try {
+    await db.settings.update(
+      s => s.id === 1,
+      {
+        currency: currency || "USD",
+        dueDays: parseInt(dueDays) || 14,
+        autoReminders: autoReminders !== undefined ? !!autoReminders : true,
+        supportTargetMinutes: parseInt(supportTargetMinutes) || 10
+      }
+    );
+    await addAuditLog("INFO", `System settings updated by ${req.user.email}`);
+    const updated = await db.settings.findOne(s => s.id === 1);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save settings." });
+  }
+});
+
+// User Profile update
+app.post("/api/auth/profile/update", authenticateToken, async (req, res) => {
+  const { name, pw } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Name is required." });
+  }
+  try {
+    const updateObj = { name };
+    if (pw) {
+      updateObj.pw = pw;
+    }
+    await db.users.update(u => u.email === req.user.email, updateObj);
+    await addAuditLog("INFO", `Profile updated for ${req.user.email}`);
+    
+    const updatedUser = await db.users.findOne(u => u.email === req.user.email);
+    const { pw: _, ...safeUser } = updatedUser;
+    res.json(safeUser);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update profile." });
+  }
+});
+
 // Overview stats & invoices (Requires authentication)
 app.get("/api/billing/overview", authenticateToken, async (req, res) => {
   try {
@@ -209,11 +273,17 @@ app.get("/api/billing/overview", authenticateToken, async (req, res) => {
       .reduce((sum, i) => sum + i.amount, 0);
     const activeSubscriptions = allInvoices.filter(i => i.status === "paid" || i.status === "pending").length;
     
+    const activeSettings = await db.settings.findOne(s => s.id === 1) || {
+      currency: "USD",
+      dueDays: 14,
+      autoReminders: true,
+      supportTargetMinutes: 10
+    };
+
     // Apply filters with query parameters
     if (status || plan) {
       list = list.filter(item => {
         if (status && plan) {
-          // FIX: Changed OR (||) logic to AND (&&) for combined queries to ensure correct database filtering matches
           return item.status === status.toLowerCase() && item.plan.toLowerCase() === plan.toLowerCase();
         }
         if (status) return item.status === status.toLowerCase();
@@ -223,15 +293,21 @@ app.get("/api/billing/overview", authenticateToken, async (req, res) => {
     }
 
     const logs = await db.logs.find();
+    const pendingInquiriesCount = allInvoices.filter(i => i.status === "pending").length;
     
     res.json({
       invoices: list,
       logs: logs.slice(-20),
+      settings: activeSettings,
       stats: {
         totalRevenue,
         outstandingAmount,
         activeSubscriptions,
-        churnRate: "2.4%"
+        churnRate: "2.4%",
+        activeTickets: 14,
+        avgResponseTime: `${activeSettings.supportTargetMinutes - 1.5}m`,
+        csat: "98.4%",
+        billingInquiries: pendingInquiriesCount
       }
     });
   } catch (err) {
@@ -255,11 +331,12 @@ app.post("/api/invoices", authenticateToken, async (req, res) => {
   }
 
   try {
+    const config = await db.settings.findOne(s => s.id === 1) || { dueDays: 14 };
     const list = await db.invoices.find();
     const nextId = list.length > 0 ? Math.max(...list.map(i => i.id)) + 1 : 1;
     const invoiceNo = `INV-${1000 + nextId}`;
     const issued = new Date().toISOString().split("T")[0];
-    const due = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const due = new Date(Date.now() + config.dueDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     const newInvoice = {
       id: nextId,
@@ -274,7 +351,7 @@ app.post("/api/invoices", authenticateToken, async (req, res) => {
     };
 
     await db.invoices.insert(newInvoice);
-    await addAuditLog("INFO", `Created invoice ${invoiceNo} for ${customer} ($${amount})`);
+    await addAuditLog("INFO", `Created invoice ${invoiceNo} for ${customer} (${config.currency || "USD"} ${amount})`);
     res.json(newInvoice);
   } catch (err) {
     res.status(500).json({ error: "Failed to create invoice." });

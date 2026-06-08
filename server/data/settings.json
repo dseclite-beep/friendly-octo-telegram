@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "currency": "USD",
+    "dueDays": 14,
+    "autoReminders": true,
+    "supportTargetMinutes": 10
+  }
+]

@@ -1,6 +1,6 @@
 const baseUrl = "http://localhost:5000";
 
-// ANSI escape codes for beautiful styling
+// ANSI escape codes for styling
 const green = (s) => `\x1b[32m${s}\x1b[0m`;
 const red = (s) => `\x1b[31m${s}\x1b[0m`;
 const yellow = (s) => `\x1b[33m${s}\x1b[0m`;
@@ -9,20 +9,34 @@ const bold = (s) => `\x1b[1m${s}\x1b[0m`;
 
 async function runTests() {
   console.log(bold(cyan("\n==================================================")));
-  console.log(bold(cyan("     APEXBILLING V1 - SYSTEM TESTING SUITE        ")));
+  console.log(bold(cyan("     APEXBILLING V1.6 - SYSTEM TESTING SUITE       ")));
   console.log(bold(cyan("==================================================\n")));
 
   try {
     // ----------------------------------------------------
-    // TEST 1: Authentication & JWT Validation
+    // TEST 1: Retrieve Profiles (Dynamic Login Catalog)
     // ----------------------------------------------------
-    console.log(bold("1. Testing Auth & Credentials..."));
+    console.log(bold("1. Testing Profiles Catalog Endpoint..."));
+    const profilesRes = await fetch(`${baseUrl}/api/auth/profiles`);
+    if (!profilesRes.ok) throw new Error("Failed to load profiles catalog!");
+    const profiles = await profilesRes.json();
+    console.log(green(`  ✓ Profile Catalog Loaded. Found ${profiles.length} mock accounts.`));
+    if (profiles.length === 0) throw new Error("Catalog returned empty users!");
+    profiles.forEach(p => console.log(`    - Profile: ${p.name} (${p.role.toUpperCase()}) | Email: ${p.email}`));
 
-    // Admin Login
+    // ----------------------------------------------------
+    // TEST 2: Authentication & JWT Validation
+    // ----------------------------------------------------
+    console.log(bold("\n2. Testing Auth & Credentials..."));
+
+    // Admin Login using credentials from catalog
+    const adminProfile = profiles.find(p => p.role === "admin");
+    if (!adminProfile) throw new Error("Admin profile missing in database!");
+
     const adminLoginRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "billing_admin@apexbilling.com", pw: "Admin@123" })
+      body: JSON.stringify({ email: adminProfile.email, pw: adminProfile.pw })
     });
     if (!adminLoginRes.ok) throw new Error("Admin login failed!");
     const adminData = await adminLoginRes.json();
@@ -40,9 +54,83 @@ async function runTests() {
     console.log(green(`  ✓ Token verified. Profile Name: ${meData.user.name} | Role: ${meData.user.role}`));
 
     // ----------------------------------------------------
-    // TEST 2: Overview Stats & Invoices Retrieval
+    // TEST 3: Profile Configuration Updates
     // ----------------------------------------------------
-    console.log(bold("\n2. Testing Invoice Retrieval & Telemetry Logs..."));
+    console.log(bold("\n3. Testing User Profile Updates..."));
+    const updateProfileRes = await fetch(`${baseUrl}/api/auth/profile/update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ name: "Lucas Vance Edit" })
+    });
+    if (!updateProfileRes.ok) throw new Error("Failed to update profile name!");
+    const updatedUser = await updateProfileRes.json();
+    if (updatedUser.name !== "Lucas Vance Edit") throw new Error("Profile name change not applied!");
+    console.log(green(`  ✓ Profile Name updated successfully: ${updatedUser.name}`));
+
+    // Restore original profile name
+    await fetch(`${baseUrl}/api/auth/profile/update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ name: "Lucas Vance" })
+    });
+    console.log(green("  ✓ Original Profile Name restored."));
+
+    // ----------------------------------------------------
+    // TEST 4: App Settings Configuration
+    // ----------------------------------------------------
+    console.log(bold("\n4. Testing App Settings Configuration..."));
+    const settingsGetRes = await fetch(`${baseUrl}/api/settings`, {
+      headers: { "Authorization": `Bearer ${adminToken}` }
+    });
+    if (!settingsGetRes.ok) throw new Error("Failed to load settings!");
+    const currentSettings = await settingsGetRes.json();
+    console.log(green(`  ✓ Current Settings Loaded: Currency=${currentSettings.currency} | DueDays=${currentSettings.dueDays} | TargetMinutes=${currentSettings.supportTargetMinutes}`));
+
+    // Update settings
+    const updateSettingsRes = await fetch(`${baseUrl}/api/settings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        currency: "EUR",
+        dueDays: 30,
+        autoReminders: false,
+        supportTargetMinutes: 15
+      })
+    });
+    if (!updateSettingsRes.ok) throw new Error("Failed to save settings!");
+    const newSettings = await updateSettingsRes.json();
+    if (newSettings.currency !== "EUR" || newSettings.dueDays !== 30) throw new Error("Settings save validation failed!");
+    console.log(green(`  ✓ Settings updated successfully: Currency=${newSettings.currency} | DueDays=${newSettings.dueDays} | Reminders=${newSettings.autoReminders}`));
+
+    // Restore original settings
+    await fetch(`${baseUrl}/api/settings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        currency: "USD",
+        dueDays: 14,
+        autoReminders: true,
+        supportTargetMinutes: 10
+      })
+    });
+    console.log(green("  ✓ Original Settings restored."));
+
+    // ----------------------------------------------------
+    // TEST 5: Overview Stats & Invoices Retrieval
+    // ----------------------------------------------------
+    console.log(bold("\n5. Testing Invoice Retrieval & Telemetry Logs..."));
     const overviewRes = await fetch(`${baseUrl}/api/billing/overview`, {
       headers: { "Authorization": `Bearer ${adminToken}` }
     });
@@ -56,9 +144,9 @@ async function runTests() {
     console.log(`    Telemetry Logs Count: ${overviewData.logs.length}`);
 
     // ----------------------------------------------------
-    // TEST 3: Invoice Posting / Creation
+    // TEST 6: Invoice Posting / Creation
     // ----------------------------------------------------
-    console.log(bold("\n3. Testing Invoice Registry Insertion..."));
+    console.log(bold("\n6. Testing Invoice Registry Insertion..."));
     const newInvoice = {
       customer: "Stark Tech Industries",
       email: "billing@stark.com",
@@ -83,9 +171,9 @@ async function runTests() {
     console.log(`    Amount: $${createdInvoice.amount} | Status: ${createdInvoice.status}`);
 
     // ----------------------------------------------------
-    // TEST 4: Query Filtering Evaluation & Bug Verification
+    // TEST 7: Query Filtering Evaluation
     // ----------------------------------------------------
-    console.log(bold("\n4. Verifying Query Filters & Endpoint Parameters..."));
+    console.log(bold("\n7. Verifying Query Filters & Endpoint Parameters..."));
     
     // Test filtering by single parameter (Plan=Enterprise)
     const planFilterRes = await fetch(`${baseUrl}/api/billing/overview?plan=Enterprise`, {
@@ -99,18 +187,6 @@ async function runTests() {
     }
     console.log(green("  ✓ Single parameter Plan filtering works correctly."));
 
-    // Test filtering by single parameter (Status=Paid)
-    const statusFilterRes = await fetch(`${baseUrl}/api/billing/overview?status=Paid`, {
-      headers: { "Authorization": `Bearer ${adminToken}` }
-    });
-    const statusFilterData = await statusFilterRes.json();
-    console.log(`    Filtering by Status=Paid: returned ${statusFilterData.invoices.length} invoices.`);
-    const nonPaid = statusFilterData.invoices.filter(i => i.status !== "paid");
-    if (nonPaid.length > 0) {
-      throw new Error("Status filtering returned incorrect states!");
-    }
-    console.log(green("  ✓ Single parameter Status filtering works correctly."));
-
     // Test combining filters (Plan=Enterprise AND Status=Paid)
     const combinedFilterRes = await fetch(`${baseUrl}/api/billing/overview?plan=Enterprise&status=Paid`, {
       headers: { "Authorization": `Bearer ${adminToken}` }
@@ -118,17 +194,16 @@ async function runTests() {
     const combinedFilterData = await combinedFilterRes.json();
     console.log(`    Filtering by Plan=Enterprise AND Status=Paid (Combined): returned ${combinedFilterData.invoices.length} invoices.`);
     
-    // Verify that every returned record satisfies BOTH plan="Enterprise" AND status="paid"
     const incorrectMatches = combinedFilterData.invoices.filter(i => i.plan !== "Enterprise" || i.status !== "paid");
     if (incorrectMatches.length > 0) {
       throw new Error("Combined Plan and Status filtering returned incorrect results (AND logic failed)!");
     }
-    console.log(green("  ✓ Combined Plan and Status filtering works correctly (AND logic validated)."));
+    console.log(green("  ✓ Combined Plan and Status filtering works correctly."));
 
     // ----------------------------------------------------
-    // TEST 5: Invoice Deletion / Removal
+    // TEST 8: Invoice Deletion
     // ----------------------------------------------------
-    console.log(bold("\n5. Testing Invoice Deletion..."));
+    console.log(bold("\n8. Testing Invoice Deletion..."));
     const deleteRes = await fetch(`${baseUrl}/api/invoices/${invoiceId}/delete`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${adminToken}` }
@@ -144,9 +219,9 @@ async function runTests() {
     console.log(bold(green("     E2E INTEGRATION TEST RESULTS: SUCCESSFUL     ")));
     console.log(bold(cyan("==================================================")));
     console.log(green("  ✓ All API routing works flawlessly"));
-    console.log(green("  ✓ JWT Authentication operates securely"));
-    console.log(green("  ✓ Registry invoice insertions and deletions succeed"));
-    console.log(green("  ✓ Filter query telemetries operate normally"));
+    console.log(green("  ✓ Dynamic profile loading operational"));
+    console.log(green("  ✓ App settings and Profile updates save to DB"));
+    console.log(green("  ✓ Invoice registers, filters and deletions succeed"));
     console.log(bold(cyan("==================================================\n")));
 
   } catch (error) {

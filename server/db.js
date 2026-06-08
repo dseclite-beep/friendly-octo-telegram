@@ -205,11 +205,23 @@ const defaultLogs = [
   { ts: "14:21:10", lvl: "INFO", msg: "Audit Log initialized: ApexBilling secure telemetry connection established." }
 ];
 
+// Baseline mock system settings
+const defaultSettings = [
+  {
+    id: 1,
+    currency: "USD",
+    dueDays: 14,
+    autoReminders: true,
+    supportTargetMinutes: 10
+  }
+];
+
 // Instantiate Tables
 const db = {
   users: new Table("users.json", defaultUsers),
   invoices: new Table("invoices.json", defaultInvoices),
-  logs: new Table("logs.json", defaultLogs)
+  logs: new Table("logs.json", defaultLogs),
+  settings: new Table("settings.json", defaultSettings)
 };
 
 // Initializer helper
@@ -217,6 +229,7 @@ async function initDatabase() {
   await db.users.init();
   await db.invoices.init();
   await db.logs.init();
+  await db.settings.init();
   console.log("Database initialized successfully!");
 }
 
