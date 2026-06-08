@@ -28,5 +28,30 @@
     "ts": "15:23:10",
     "lvl": "INFO",
     "msg": "Deleted invoice INV-1009 for Stark Tech Industries"
+  },
+  {
+    "ts": "15:28:07",
+    "lvl": "INFO",
+    "msg": "User auth success: billing_admin@apexbilling.com (admin)"
+  },
+  {
+    "ts": "15:28:35",
+    "lvl": "INFO",
+    "msg": "User auth success: support_agent@apexbilling.com (support)"
+  },
+  {
+    "ts": "15:36:21",
+    "lvl": "INFO",
+    "msg": "User auth success: billing_admin@apexbilling.com (admin)"
+  },
+  {
+    "ts": "15:36:21",
+    "lvl": "INFO",
+    "msg": "Created invoice INV-1009 for Stark Tech Industries ($4500)"
+  },
+  {
+    "ts": "15:36:21",
+    "lvl": "INFO",
+    "msg": "Deleted invoice INV-1009 for Stark Tech Industries"
   }
 ]

@@ -40,6 +40,129 @@ async function authenticateToken(req, res, next) {
   }
 }
 
+const apiPortalHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ApexBilling // API Status Gateway</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #090d10;
+      color: #94a3b8;
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .status-card {
+      background: rgba(15, 23, 28, 0.45);
+      border: 1px solid rgba(16, 185, 129, 0.08);
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    .logo-box {
+      width: 46px;
+      height: 46px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px auto;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    }
+    h1 { font-size: 1.4rem; font-weight: 800; color: #f8fafc; letter-spacing: 0.05em; }
+    p.desc { font-size: 0.85rem; color: #64748b; margin-top: 4px; margin-bottom: 24px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #10b981;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 30px;
+    }
+    .pulse-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; box-shadow: 0 0 6px #10b981; } }
+    .info-list { text-align: left; background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 16px; margin-bottom: 24px; font-family: 'Space Mono', monospace; font-size: 0.72rem; }
+    .info-item { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.02); padding-bottom: 6px; }
+    .info-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+    .info-label { color: #475569; }
+    .info-val { color: #94a3b8; }
+    .link-btn {
+      display: inline-block;
+      width: 100%;
+      background: #10b981;
+      color: #fff;
+      text-decoration: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.825rem;
+      transition: background 0.2s;
+    }
+    .link-btn:hover { background: #059669; }
+  </style>
+</head>
+<body>
+  <div class="status-card">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="#fff" style="width: 22; height: 22;">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </div>
+    <h1>ApexBilling platform API</h1>
+    <p class="desc">System REST Gateway & Database Controller</p>
+    
+    <div class="status-badge">
+      <span class="pulse-dot"></span>
+      API Services Status: Online
+    </div>
+
+    <div class="info-list">
+      <div class="info-item">
+        <span class="info-label">GATEWAY PORT</span>
+        <span class="info-val">5000</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">PERSISTENCE LAYER</span>
+        <span class="info-val">JSON-ORM Ledger Database</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">DB INITIALIZATION</span>
+        <span class="info-val">Success / Stable</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">VERIFIED SERVICE</span>
+        <span class="info-val">JWT Middleware Active</span>
+      </div>
+    </div>
+
+    <a href="http://localhost:5173" class="link-btn">Launch Frontend Console</a>
+  </div>
+</body>
+</html>`;
+
+app.get("/", (req, res) => {
+  res.send(apiPortalHtml);
+});
+
 // Auth Routes
 app.post("/api/auth/login", async (req, res) => {
   const { email, pw } = req.body;

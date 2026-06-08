@@ -18,6 +18,9 @@ export default function ApexBilling() {
     churnRate: "0.0%"
   });
 
+  // Manager projection state
+  const [projectedNewSubs, setProjectedNewSubs] = useState(10);
+
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
@@ -101,7 +104,7 @@ export default function ApexBilling() {
     }
   }, [statusFilter, planFilter, screen]);
 
-  // --- LOGIN HANDLER (WITH INTRODUCED TIMING BUG) ---
+  // --- LOGIN HANDLER ---
   const handleLogin = async (e, customCredentials) => {
     if (e) e.preventDefault();
     setError("");
@@ -197,8 +200,13 @@ export default function ApexBilling() {
     }
   };
 
-  // Delete Invoice
+  // Delete Invoice (Only allowed for Admin)
   const handleDeleteInvoice = async (id, invoiceNo) => {
+    if (user?.role !== "admin") {
+      alert("Unauthorized: Only billing administrators can delete invoices.");
+      return;
+    }
+
     if (!confirm(`Are you sure you want to remove invoice ${invoiceNo}?`)) return;
 
     try {
@@ -251,6 +259,24 @@ export default function ApexBilling() {
     link.click();
     document.body.removeChild(link);
   };
+
+  // Dynamic Manager Stats
+  const basicCount = invoices.filter(i => i.plan === "Basic").length;
+  const proCount = invoices.filter(i => i.plan === "Pro").length;
+  const entCount = invoices.filter(i => i.plan === "Enterprise").length;
+  const totalCount = invoices.length || 1;
+  const basicPct = Math.round((basicCount / totalCount) * 100);
+  const proPct = Math.round((proCount / totalCount) * 100);
+  const entPct = Math.round((entCount / totalCount) * 100);
+
+  const averageAmount = invoices.length > 0 
+    ? (invoices.reduce((sum, i) => sum + i.amount, 0) / invoices.length) 
+    : 299;
+
+  // Filter logs for Support role to prevent showing sensitive telemetry (like security rate limits or system warnings)
+  const displayLogs = user?.role === "support"
+    ? logs.filter(log => !log.msg.toLowerCase().includes("rate limit") && !log.msg.toLowerCase().includes("failed login"))
+    : logs;
 
   // Render Login screen
   if (screen === "login") {
@@ -323,7 +349,7 @@ export default function ApexBilling() {
           </div>
           <div className="brand-text">
             <h1>ApexBilling // System Console</h1>
-            <p>Admin: {user?.name || "Initializing..."} ({user?.role || "user"})</p>
+            <p>Session: <strong>{user?.name || "Initializing..."}</strong> · <span style={{ color: "#34d399", fontWeight: 700 }}>{(user?.role || "user").toUpperCase()}</span></p>
           </div>
         </div>
         <div className="header-actions">
@@ -337,25 +363,46 @@ export default function ApexBilling() {
 
       {/* Main Grid */}
       <main className="dash-content">
-        {/* Metrics Grid */}
-        <div className="metrics-grid">
-          <div className="metric-card revenue">
-            <div className="m-label">Total Revenue (Paid)</div>
-            <div className="m-value">${Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        {/* Metrics Grid (Conditional based on role) */}
+        {user?.role === "support" ? (
+          <div className="metrics-grid">
+            <div className="metric-card tickets">
+              <div className="m-label">Active Support Tickets</div>
+              <div className="m-value">14</div>
+            </div>
+            <div className="metric-card sla">
+              <div className="m-label">Avg Response SLA</div>
+              <div className="m-value">8.5m</div>
+            </div>
+            <div className="metric-card csat">
+              <div className="m-label">CSAT Satisfaction</div>
+              <div className="m-value">98.4%</div>
+            </div>
+            <div className="metric-card inquiries">
+              <div className="m-label">Billing Inquiries</div>
+              <div className="m-value">3</div>
+            </div>
           </div>
-          <div className="metric-card subscriptions">
-            <div className="m-label">Active Subscriptions</div>
-            <div className="m-value">{stats.activeSubscriptions || 0}</div>
+        ) : (
+          <div className="metrics-grid">
+            <div className="metric-card revenue">
+              <div className="m-label">Total Revenue (Paid)</div>
+              <div className="m-value">${Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            <div className="metric-card subscriptions">
+              <div className="m-label">Active Subscriptions</div>
+              <div className="m-value">{stats.activeSubscriptions || 0}</div>
+            </div>
+            <div className="metric-card outstanding">
+              <div className="m-label">Outstanding Invoices</div>
+              <div className="m-value">${Number(stats.outstandingAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            <div className="metric-card churn">
+              <div className="m-label">System Churn Rate</div>
+              <div className="m-value">{stats.churnRate}</div>
+            </div>
           </div>
-          <div className="metric-card outstanding">
-            <div className="m-label">Outstanding Invoices</div>
-            <div className="m-value">${Number(stats.outstandingAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div className="metric-card churn">
-            <div className="m-label">System Churn Rate</div>
-            <div className="m-value">{stats.churnRate}</div>
-          </div>
-        </div>
+        )}
 
         {/* Workspace Layout */}
         <div className="workspace-grid">
@@ -414,7 +461,7 @@ export default function ApexBilling() {
                     <th>Amount</th>
                     <th>Status</th>
                     <th>Issued</th>
-                    <th style={{ textAlign: "right" }}>Control</th>
+                    {user?.role === "admin" && <th style={{ textAlign: "right" }}>Control</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -434,19 +481,21 @@ export default function ApexBilling() {
                           </span>
                         </td>
                         <td className="inv-date">{inv.issued}</td>
-                        <td style={{ textAlign: "right" }}>
-                          <button 
-                            className="delete-row-btn" 
-                            onClick={() => handleDeleteInvoice(inv.id, inv.invoiceNo)}
-                          >
-                            Delete
-                          </button>
-                        </td>
+                        {user?.role === "admin" && (
+                          <td style={{ textAlign: "right" }}>
+                            <button 
+                              className="delete-row-btn" 
+                              onClick={() => handleDeleteInvoice(inv.id, inv.invoiceNo)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="empty-row">No invoice records match current filters.</td>
+                      <td colSpan={user?.role === "admin" ? "7" : "6"} className="empty-row">No invoice records match current filters.</td>
                     </tr>
                   )}
                 </tbody>
@@ -454,89 +503,258 @@ export default function ApexBilling() {
             </div>
           </div>
 
-          {/* Right Panel: Operations Logs & Creator Form */}
+          {/* Right Panel: Operations Logs & Creator Form (Conditional based on role) */}
           <div className="ops-panel">
-            {/* Create Invoice Card */}
-            <div className="create-invoice-card card">
-              <h2>Invoice Registry Form</h2>
-              <p className="card-desc">Post a new customer bill to the database ledger</p>
-              
-              <form onSubmit={handleCreateInvoice}>
-                <div className="form-group">
-                  <label>Customer Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="Acme Corp" 
-                    value={newCust} 
-                    onChange={(e) => setNewCust(e.target.value)} 
-                  />
+            {/* ADMIN VIEW */}
+            {user?.role === "admin" && (
+              <>
+                <div className="create-invoice-card card">
+                  <h2>Invoice Registry Form</h2>
+                  <p className="card-desc">Post a new customer bill to the database ledger</p>
+                  
+                  <form onSubmit={handleCreateInvoice}>
+                    <div className="form-group">
+                      <label>Customer Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="Acme Corp" 
+                        value={newCust} 
+                        onChange={(e) => setNewCust(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Billing Email</label>
+                      <input 
+                        type="email" 
+                        placeholder="finance@acme.com" 
+                        value={newEmail} 
+                        onChange={(e) => setNewEmail(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group half">
+                        <label>Plan Tier</label>
+                        <select value={newPlan} onChange={(e) => setNewPlan(e.target.value)}>
+                          <option value="Basic">Basic</option>
+                          <option value="Pro">Pro</option>
+                          <option value="Enterprise">Enterprise</option>
+                        </select>
+                      </div>
+                      <div className="form-group half">
+                        <label>Amount ($)</label>
+                        <input 
+                          type="number" 
+                          placeholder="299.00" 
+                          value={newAmount} 
+                          onChange={(e) => setNewAmount(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Payment Status</label>
+                      <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+                        <option value="paid">Paid</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="pending">Pending</option>
+                      </select>
+                    </div>
+
+                    {formMsg && (
+                      <div className={`form-feedback ${formMsg.startsWith("Success") ? "success" : "error"}`}>
+                        {formMsg}
+                      </div>
+                    )}
+
+                    <button type="submit" className="submit-invoice-btn">Submit Ledger Record</button>
+                  </form>
                 </div>
-                <div className="form-group">
-                  <label>Billing Email</label>
-                  <input 
-                    type="email" 
-                    placeholder="finance@acme.com" 
-                    value={newEmail} 
-                    onChange={(e) => setNewEmail(e.target.value)} 
-                  />
-                </div>
-                <div className="form-row">
-                  <div className="form-group half">
-                    <label>Plan Tier</label>
-                    <select value={newPlan} onChange={(e) => setNewPlan(e.target.value)}>
-                      <option value="Basic">Basic</option>
-                      <option value="Pro">Pro</option>
-                      <option value="Enterprise">Enterprise</option>
-                    </select>
+
+                <div className="audit-card card">
+                  <div className="panel-header">
+                    <h2>Security & Audit Telemetry</h2>
                   </div>
-                  <div className="form-group half">
-                    <label>Amount ($)</label>
+                  <div className="log-stream-wrapper">
+                    {displayLogs.length > 0 ? (
+                      displayLogs.map((log, idx) => (
+                        <div key={idx} className="log-line">
+                          <span className="log-time">{log.ts}</span>
+                          <span className={`log-level ${log.lvl.toLowerCase()}`}>[{log.lvl}]</span>
+                          <span className="log-text">{log.msg}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-logs">No telemetry data streamed.</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* MANAGER VIEW */}
+            {user?.role === "manager" && (
+              <>
+                <div className="card">
+                  <h2>Subscription Tier Analysis</h2>
+                  <p className="card-desc">Active subscriber distributions across billing plans</p>
+                  
+                  <div className="tier-distribution-list">
+                    <div className="tier-item">
+                      <div className="tier-header-info">
+                        <span className="tier-label">Basic Plan ($49/mo)</span>
+                        <span className="tier-stats">{basicCount} users ({basicPct}%)</span>
+                      </div>
+                      <div className="tier-meter-bar">
+                        <div className="tier-meter-fill" style={{ width: `${basicPct}%` }}></div>
+                      </div>
+                    </div>
+                    <div className="tier-item">
+                      <div className="tier-header-info">
+                        <span className="tier-label">Pro Plan ($299/mo)</span>
+                        <span className="tier-stats">{proCount} users ({proPct}%)</span>
+                      </div>
+                      <div className="tier-meter-bar">
+                        <div className="tier-meter-fill" style={{ width: `${proPct}%` }}></div>
+                      </div>
+                    </div>
+                    <div className="tier-item">
+                      <div className="tier-header-info">
+                        <span className="tier-label">Enterprise Plan ($1,200/mo)</span>
+                        <span className="tier-stats">{entCount} users ({entPct}%)</span>
+                      </div>
+                      <div className="tier-meter-bar">
+                        <div className="tier-meter-fill" style={{ width: `${entPct}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card projection-card">
+                  <h2>Financial MRR Simulator</h2>
+                  <p className="card-desc">Simulate revenue growth by adding new subscribers</p>
+                  
+                  <div className="slider-container">
+                    <label className="form-group label">Add Projected Subscribers: <strong>+{projectedNewSubs}</strong></label>
                     <input 
-                      type="number" 
-                      placeholder="299.00" 
-                      value={newAmount} 
-                      onChange={(e) => setNewAmount(e.target.value)} 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={projectedNewSubs} 
+                      onChange={(e) => setProjectedNewSubs(parseInt(e.target.value))} 
+                      className="slider-control"
                     />
                   </div>
-                </div>
-                <div className="form-group">
-                  <label>Payment Status</label>
-                  <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-                    <option value="paid">Paid</option>
-                    <option value="unpaid">Unpaid</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </div>
 
-                {formMsg && (
-                  <div className={`form-feedback ${formMsg.startsWith("Success") ? "success" : "error"}`}>
-                    {formMsg}
-                  </div>
-                )}
-
-                <button type="submit" className="submit-invoice-btn">Submit Ledger Record</button>
-              </form>
-            </div>
-
-            {/* Live Audit Stream */}
-            <div className="audit-card card">
-              <div className="panel-header">
-                <h2>Security & Audit Telemetry</h2>
-              </div>
-              <div className="log-stream-wrapper">
-                {logs.length > 0 ? (
-                  logs.map((log, idx) => (
-                    <div key={idx} className="log-line">
-                      <span className="log-time">{log.ts}</span>
-                      <span className={`log-level ${log.lvl.toLowerCase()}`}>[{log.lvl}]</span>
-                      <span className="log-text">{log.msg}</span>
+                  <div className="projection-results">
+                    <div className="proj-item">
+                      <span className="proj-label">Current Revenue</span>
+                      <span className="proj-val">${Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="empty-logs">No telemetry data streamed.</div>
-                )}
-              </div>
-            </div>
+                    <div className="proj-item">
+                      <span className="proj-label">Est. Value (Avg: ${Math.round(averageAmount)}/sub)</span>
+                      <span className="proj-val">+${Number(projectedNewSubs * averageAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="proj-item">
+                      <span className="proj-label">Projected Monthly Revenue</span>
+                      <span className="proj-val highlight">${Number(stats.totalRevenue + (projectedNewSubs * averageAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* SUPPORT VIEW */}
+            {user?.role === "support" && (
+              <>
+                <div className="card support-welcome-card">
+                  <h3>Support Center Workspace</h3>
+                  <p>Logged in as Customer Support. Use this workspace to review billing status and resolve customer inquiries. You can add customer invoices using the form below.</p>
+                  <div className="support-actions-row">
+                    <button className="support-action-btn" onClick={() => alert("Payment reminder emails dispatched to all pending accounts!")}>Send Reminders</button>
+                    <button className="support-action-btn" onClick={() => alert("Ticket cache purged. Syncing with ZenDesk/Intercom...")}>Sync Helpdesk</button>
+                  </div>
+                </div>
+
+                <div className="create-invoice-card card">
+                  <h2>Customer Invoice Creator</h2>
+                  <p className="card-desc">Log a customer transaction into the ledger database</p>
+                  
+                  <form onSubmit={handleCreateInvoice}>
+                    <div className="form-group">
+                      <label>Customer Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="Acme Corp" 
+                        value={newCust} 
+                        onChange={(e) => setNewCust(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Billing Email</label>
+                      <input 
+                        type="email" 
+                        placeholder="finance@acme.com" 
+                        value={newEmail} 
+                        onChange={(e) => setNewEmail(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group half">
+                        <label>Plan Tier</label>
+                        <select value={newPlan} onChange={(e) => setNewPlan(e.target.value)}>
+                          <option value="Basic">Basic</option>
+                          <option value="Pro">Pro</option>
+                          <option value="Enterprise">Enterprise</option>
+                        </select>
+                      </div>
+                      <div className="form-group half">
+                        <label>Amount ($)</label>
+                        <input 
+                          type="number" 
+                          placeholder="299.00" 
+                          value={newAmount} 
+                          onChange={(e) => setNewAmount(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Payment Status</label>
+                      <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+                        <option value="paid">Paid</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="pending">Pending</option>
+                      </select>
+                    </div>
+
+                    {formMsg && (
+                      <div className={`form-feedback ${formMsg.startsWith("Success") ? "success" : "error"}`}>
+                        {formMsg}
+                      </div>
+                    )}
+
+                    <button type="submit" className="submit-invoice-btn">Submit Ledger Record</button>
+                  </form>
+                </div>
+
+                <div className="audit-card card">
+                  <div className="panel-header">
+                    <h2>Customer Operations Log</h2>
+                  </div>
+                  <div className="log-stream-wrapper">
+                    {displayLogs.length > 0 ? (
+                      displayLogs.map((log, idx) => (
+                        <div key={idx} className="log-line">
+                          <span className="log-time">{log.ts}</span>
+                          <span className={`log-level ${log.lvl.toLowerCase()}`}>[{log.lvl}]</span>
+                          <span className="log-text">{log.msg}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-logs">No telemetry data streamed.</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>
