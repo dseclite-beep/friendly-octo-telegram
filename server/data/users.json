@@ -1,0 +1,29 @@
+[
+  {
+    "email": "billing_admin@apexbilling.com",
+    "pw": "Admin@123",
+    "name": "Lucas Vance",
+    "role": "admin",
+    "av": "LV",
+    "joined": "Jan 12, 2025",
+    "status": "active"
+  },
+  {
+    "email": "finance_manager@apexbilling.com",
+    "pw": "Manager@123",
+    "name": "Sophia Martinez",
+    "role": "manager",
+    "av": "SM",
+    "joined": "Feb 5, 2025",
+    "status": "active"
+  },
+  {
+    "email": "support_agent@apexbilling.com",
+    "pw": "Support@123",
+    "name": "Liam Thompson",
+    "role": "support",
+    "av": "LT",
+    "joined": "Mar 1, 2025",
+    "status": "active"
+  }
+]

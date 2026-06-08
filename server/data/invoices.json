@@ -1,0 +1,90 @@
+[
+  {
+    "id": 1,
+    "invoiceNo": "INV-1001",
+    "customer": "Acme Corp",
+    "email": "billing@acme.com",
+    "plan": "Enterprise",
+    "amount": 1200,
+    "status": "paid",
+    "issued": "2026-06-01",
+    "due": "2026-06-15"
+  },
+  {
+    "id": 2,
+    "invoiceNo": "INV-1002",
+    "customer": "Globex Inc",
+    "email": "accounting@globex.com",
+    "plan": "Pro",
+    "amount": 299,
+    "status": "unpaid",
+    "issued": "2026-06-03",
+    "due": "2026-06-17"
+  },
+  {
+    "id": 3,
+    "invoiceNo": "INV-1003",
+    "customer": "Initech",
+    "email": "invoices@initech.com",
+    "plan": "Pro",
+    "amount": 299,
+    "status": "pending",
+    "issued": "2026-06-04",
+    "due": "2026-06-18"
+  },
+  {
+    "id": 4,
+    "invoiceNo": "INV-1004",
+    "customer": "Umbrella Corp",
+    "email": "payables@umbrella.com",
+    "plan": "Basic",
+    "amount": 49,
+    "status": "paid",
+    "issued": "2026-05-28",
+    "due": "2026-06-11"
+  },
+  {
+    "id": 5,
+    "invoiceNo": "INV-1005",
+    "customer": "Tyrell Corp",
+    "email": "finance@tyrell.com",
+    "plan": "Enterprise",
+    "amount": 1500,
+    "status": "unpaid",
+    "issued": "2026-06-05",
+    "due": "2026-06-19"
+  },
+  {
+    "id": 6,
+    "invoiceNo": "INV-1006",
+    "customer": "Hooli",
+    "email": "billing@hooli.xyz",
+    "plan": "Pro",
+    "amount": 299,
+    "status": "paid",
+    "issued": "2026-06-02",
+    "due": "2026-06-16"
+  },
+  {
+    "id": 7,
+    "invoiceNo": "INV-1007",
+    "customer": "Stark Industries",
+    "email": "accounts@stark.com",
+    "plan": "Basic",
+    "amount": 49,
+    "status": "pending",
+    "issued": "2026-06-06",
+    "due": "2026-06-20"
+  },
+  {
+    "id": 8,
+    "invoiceNo": "INV-1008",
+    "customer": "Wayne Enterprises",
+    "email": "treasury@wayne.com",
+    "plan": "Enterprise",
+    "amount": 2400,
+    "status": "paid",
+    "issued": "2026-05-25",
+    "due": "2026-06-08"
+  }
+]
