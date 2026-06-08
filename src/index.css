@@ -167,7 +167,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--txt-muted);
+  color: var(--txt-secondary);
   margin-bottom: 6px;
 }
 
@@ -372,10 +372,10 @@ body {
 }
 
 .logout-btn {
-  background: rgba(239, 68, 68, 0.05);
-  border: 1px solid rgba(239, 68, 68, 0.15);
-  color: var(--color-error);
-  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 6px 14px;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
@@ -384,7 +384,7 @@ body {
 }
 
 .logout-btn:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: #ef4444;
   color: #ffffff;
 }
 
@@ -601,7 +601,7 @@ body {
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--txt-muted);
+  color: var(--txt-secondary);
   letter-spacing: 0.05em;
 }
 
@@ -641,7 +641,7 @@ body {
 .ledger-table th {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--txt-muted);
+  color: var(--txt-secondary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 12px 16px;

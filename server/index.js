@@ -100,11 +100,11 @@ const apiPortalHtml = `<!DOCTYPE html>
     }
     .pulse-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; animation: pulse 1.8s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; box-shadow: 0 0 6px #10b981; } }
-    .info-list { text-align: left; background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 16px; margin-bottom: 24px; font-family: 'Space Mono', monospace; font-size: 0.72rem; }
+    .info-list { text-align: left; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 24px; font-family: 'Space Mono', monospace; font-size: 0.72rem; }
     .info-item { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.02); padding-bottom: 6px; }
     .info-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
-    .info-label { color: #475569; }
-    .info-val { color: #94a3b8; }
+    .info-label { color: #94a3b8; }
+    .info-val { color: #10b981; font-weight: 700; }
     .link-btn {
       display: inline-block;
       width: 100%;
