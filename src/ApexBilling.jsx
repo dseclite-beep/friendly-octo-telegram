@@ -156,6 +156,16 @@ export default function ApexBilling() {
       return;
     }
 
+    if (!newEmail.includes("@") || !newEmail.includes(".")) {
+      setFormMsg("Error: Please enter a valid email address.");
+      return;
+    }
+
+    if (parseFloat(newAmount) <= 0 || isNaN(parseFloat(newAmount))) {
+      setFormMsg("Error: Amount must be a positive number.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/invoices", {
         method: "POST",
@@ -223,7 +233,7 @@ export default function ApexBilling() {
       `"${inv.customer.replace(/"/g, '""')}"`, // escape quotes
       inv.email,
       inv.plan,
-      inv.amount.toFixed(2),
+      Number(inv.amount || 0).toFixed(2),
       inv.status.toUpperCase(),
       inv.issued,
       inv.due
@@ -331,15 +341,15 @@ export default function ApexBilling() {
         <div className="metrics-grid">
           <div className="metric-card revenue">
             <div className="m-label">Total Revenue (Paid)</div>
-            <div className="m-value">${stats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="m-value">${Number(stats.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div className="metric-card subscriptions">
             <div className="m-label">Active Subscriptions</div>
-            <div className="m-value">{stats.activeSubscriptions}</div>
+            <div className="m-value">{stats.activeSubscriptions || 0}</div>
           </div>
           <div className="metric-card outstanding">
             <div className="m-label">Outstanding Invoices</div>
-            <div className="m-value">${stats.outstandingAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="m-value">${Number(stats.outstandingAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div className="metric-card churn">
             <div className="m-label">System Churn Rate</div>
@@ -417,7 +427,7 @@ export default function ApexBilling() {
                           <div className="cust-email">{inv.email}</div>
                         </td>
                         <td><span className="plan-badge">{inv.plan}</span></td>
-                        <td className="inv-amount">${inv.amount.toFixed(2)}</td>
+                        <td className="inv-amount">${Number(inv.amount || 0).toFixed(2)}</td>
                         <td>
                           <span className={`status-badge ${inv.status}`}>
                             {inv.status}

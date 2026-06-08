@@ -117,11 +117,18 @@ app.get("/api/billing/overview", authenticateToken, async (req, res) => {
   }
 });
 
-// Manage Invoice creation
 app.post("/api/invoices", authenticateToken, async (req, res) => {
   const { customer, email, plan, amount, status } = req.body;
   if (!customer || !email || !plan || !amount || !status) {
     return res.status(400).json({ error: "All fields are required to create an invoice." });
+  }
+
+  if (parseFloat(amount) <= 0 || isNaN(parseFloat(amount))) {
+    return res.status(400).json({ error: "Amount must be a positive number." });
+  }
+
+  if (!email.includes("@") || !email.includes(".")) {
+    return res.status(400).json({ error: "Please provide a valid email address." });
   }
 
   try {
