@@ -8,7 +8,7 @@
   
   --txt-primary: #f8fafc;
   --txt-secondary: #94a3b8;
-  --txt-muted: #475569;
+  --txt-muted: #64748b;
 
   --accent-blue: #3b82f6;
   --accent-violet: #8b5cf6;
@@ -26,6 +26,15 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+input::placeholder {
+  color: #475569;
+}
+
+option {
+  background-color: #0f172a;
+  color: #f8fafc;
 }
 
 body {
