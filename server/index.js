@@ -86,12 +86,12 @@ app.get("/api/billing/overview", authenticateToken, async (req, res) => {
       .reduce((sum, i) => sum + i.amount, 0);
     const activeSubscriptions = allInvoices.filter(i => i.status === "paid" || i.status === "pending").length;
     
-    // Apply filters with the specific FILTER BUG
+    // Apply filters with query parameters
     if (status || plan) {
       list = list.filter(item => {
         if (status && plan) {
-          // BUG: OR (||) logic instead of AND (&&) for combined queries
-          return item.status === status.toLowerCase() || item.plan.toLowerCase() === plan.toLowerCase();
+          // FIX: Changed OR (||) logic to AND (&&) for combined queries to ensure correct database filtering matches
+          return item.status === status.toLowerCase() && item.plan.toLowerCase() === plan.toLowerCase();
         }
         if (status) return item.status === status.toLowerCase();
         if (plan) return item.plan.toLowerCase() === plan.toLowerCase();

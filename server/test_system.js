@@ -118,14 +118,12 @@ async function runTests() {
     const combinedFilterData = await combinedFilterRes.json();
     console.log(`    Filtering by Plan=Enterprise AND Status=Paid (Combined): returned ${combinedFilterData.invoices.length} invoices.`);
     
-    // Since there is a known filter query bug (OR instead of AND in query evaluation),
-    // it will return items that match EITHER Enterprise OR Paid. Let's document this!
-    const incorrectMatches = combinedFilterData.invoices.filter(i => i.plan !== "Enterprise" && i.status !== "paid");
+    // Verify that every returned record satisfies BOTH plan="Enterprise" AND status="paid"
+    const incorrectMatches = combinedFilterData.invoices.filter(i => i.plan !== "Enterprise" || i.status !== "paid");
     if (incorrectMatches.length > 0) {
-       console.log(yellow("  ⚠ Note: Filter bug detected in combined query (returned OR results instead of AND matches)."));
-    } else {
-       console.log(green("  ✓ Combined Plan and Status filtering works correctly."));
+      throw new Error("Combined Plan and Status filtering returned incorrect results (AND logic failed)!");
     }
+    console.log(green("  ✓ Combined Plan and Status filtering works correctly (AND logic validated)."));
 
     // ----------------------------------------------------
     // TEST 5: Invoice Deletion / Removal

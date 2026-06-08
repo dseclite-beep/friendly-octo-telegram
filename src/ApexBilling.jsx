@@ -130,23 +130,10 @@ export default function ApexBilling() {
       // Write token to storage
       localStorage.setItem("apexbilling_token", data.token);
 
-      // --- TIMING / RACE-CONDITION BUG ---
-      // To simulate route redirect instability (fails about 3 out of 10 times)
-      const randomTrigger = Math.random();
-      if (randomTrigger < 0.3) {
-        // BUG: Transition screens immediately before state variables are successfully populated,
-        // causing authentication guards to fail route verification and bounce users back.
-        setScreen("dashboard");
-        setTimeout(() => {
-          setToken(data.token);
-          setUser(data.user);
-        }, 80);
-      } else {
-        // Safe pathway (70% probability)
-        setToken(data.token);
-        setUser(data.user);
-        setScreen("dashboard");
-      }
+      // Set user session state fully before transitioning the screen to prevent routing race conditions
+      setToken(data.token);
+      setUser(data.user);
+      setScreen("dashboard");
     } catch (err) {
       setError("Connection failure to ApexBilling servers.");
     }
