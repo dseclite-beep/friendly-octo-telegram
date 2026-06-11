@@ -63,23 +63,33 @@ async function runTests() {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${adminToken}`
       },
-      body: JSON.stringify({ name: "Lucas Vance Edit" })
+      body: JSON.stringify({ 
+        name: "Lucas Vance Edit",
+        userStatus: "Away",
+        bio: "ApexBilling Principal Console Administrator (Edited)"
+      })
     });
-    if (!updateProfileRes.ok) throw new Error("Failed to update profile name!");
+    if (!updateProfileRes.ok) throw new Error("Failed to update profile details!");
     const updatedUser = await updateProfileRes.json();
-    if (updatedUser.name !== "Lucas Vance Edit") throw new Error("Profile name change not applied!");
-    console.log(green(`  ✓ Profile Name updated successfully: ${updatedUser.name}`));
+    if (updatedUser.name !== "Lucas Vance Edit" || updatedUser.userStatus !== "Away" || updatedUser.bio !== "ApexBilling Principal Console Administrator (Edited)") {
+      throw new Error("Profile details updates not applied!");
+    }
+    console.log(green("  ✓ Profile Name, Status, and Bio updated successfully."));
 
-    // Restore original profile name
+    // Restore original profile details
     await fetch(`${baseUrl}/api/auth/profile/update`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${adminToken}`
       },
-      body: JSON.stringify({ name: "Lucas Vance" })
+      body: JSON.stringify({ 
+        name: "Lucas Vance",
+        userStatus: "Active",
+        bio: "ApexBilling Principal Console Administrator"
+      })
     });
-    console.log(green("  ✓ Original Profile Name restored."));
+    console.log(green("  ✓ Original Profile details restored."));
 
     // ----------------------------------------------------
     // TEST 4: App Settings Configuration
@@ -213,6 +223,67 @@ async function runTests() {
     console.log(green(`  ✓ ${deleteResultData.message}`));
 
     // ----------------------------------------------------
+    // TEST 9: User Creation, Authentication & Cleanup
+    // ----------------------------------------------------
+    console.log(bold("\n9. Testing Operator Account Registry & Verification..."));
+    
+    // Create new support user as admin
+    const createOperatorRes = await fetch(`${baseUrl}/api/users/create`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        name: "Test Operator",
+        email: "test_operator@apexbilling.com",
+        pw: "TestPass@123",
+        role: "support"
+      })
+    });
+    if (!createOperatorRes.ok) {
+      const errData = await createOperatorRes.json();
+      throw new Error(`Failed to create test operator account: ${errData.error || createOperatorRes.statusText}`);
+    }
+    const createdOperator = await createOperatorRes.json();
+    console.log(green(`  ✓ Operator user created: ${createdOperator.name} (${createdOperator.role})`));
+
+    // Try logging in with the new user's credentials
+    const opLoginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "test_operator@apexbilling.com",
+        pw: "TestPass@123"
+      })
+    });
+    if (!opLoginRes.ok) throw new Error("Created operator failed to log in!");
+    const opLoginData = await opLoginRes.json();
+    console.log(green("  ✓ Created operator authenticated successfully and retrieved token."));
+    const opToken = opLoginData.token;
+
+    // Delete the operator user as admin
+    const deleteOpRes = await fetch(`${baseUrl}/api/users/test_operator@apexbilling.com/delete`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${adminToken}` }
+    });
+    if (!deleteOpRes.ok) throw new Error("Failed to delete test operator account!");
+    const deleteOpResult = await deleteOpRes.json();
+    console.log(green(`  ✓ ${deleteOpResult.message}`));
+
+    // Verify login fails now
+    const opLoginRes2 = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "test_operator@apexbilling.com",
+        pw: "TestPass@123"
+      })
+    });
+    if (opLoginRes2.ok) throw new Error("Operator login succeeded after account was deleted!");
+    console.log(green("  ✓ Verified operator login rejected after account deletion."));
+
+    // ----------------------------------------------------
     // SUMMARY
     // ----------------------------------------------------
     console.log(bold(cyan("\n==================================================")));
@@ -222,7 +293,9 @@ async function runTests() {
     console.log(green("  ✓ Dynamic profile loading operational"));
     console.log(green("  ✓ App settings and Profile updates save to DB"));
     console.log(green("  ✓ Invoice registers, filters and deletions succeed"));
+    console.log(green("  ✓ Operator user creation and cleanup verified"));
     console.log(bold(cyan("==================================================\n")));
+
 
   } catch (error) {
     console.error(bold(red("\n❌ Deep testing encountered a critical failure!")));

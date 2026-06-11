@@ -6,7 +6,9 @@
     "role": "admin",
     "av": "LV",
     "joined": "Jan 12, 2025",
-    "status": "active"
+    "status": "active",
+    "userStatus": "Active",
+    "bio": "ApexBilling Principal Console Administrator"
   },
   {
     "email": "finance_manager@apexbilling.com",

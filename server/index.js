@@ -197,7 +197,15 @@ app.get("/api/auth/me", authenticateToken, (req, res) => {
 app.get("/api/auth/profiles", async (req, res) => {
   try {
     const users = await db.users.find();
-    const profiles = users.map(u => ({ name: u.name, email: u.email, pw: u.pw, role: u.role }));
+    const profiles = users.map(u => ({
+      name: u.name,
+      email: u.email,
+      pw: u.pw,
+      role: u.role,
+      avatar: u.avatar || null,
+      userStatus: u.userStatus || "Active",
+      bio: u.bio || ""
+    }));
     res.json(profiles);
   } catch (err) {
     res.status(500).json({ error: "Failed to load profiles." });
@@ -237,7 +245,7 @@ app.post("/api/settings", authenticateToken, async (req, res) => {
 
 // User Profile update
 app.post("/api/auth/profile/update", authenticateToken, async (req, res) => {
-  const { name, pw } = req.body;
+  const { name, pw, avatar, userStatus, bio } = req.body;
   if (!name) {
     return res.status(400).json({ error: "Name is required." });
   }
@@ -245,6 +253,15 @@ app.post("/api/auth/profile/update", authenticateToken, async (req, res) => {
     const updateObj = { name };
     if (pw) {
       updateObj.pw = pw;
+    }
+    if (avatar !== undefined) {
+      updateObj.avatar = avatar;
+    }
+    if (userStatus !== undefined) {
+      updateObj.userStatus = userStatus;
+    }
+    if (bio !== undefined) {
+      updateObj.bio = bio;
     }
     await db.users.update(u => u.email === req.user.email, updateObj);
     await addAuditLog("INFO", `Profile updated for ${req.user.email}`);
@@ -254,6 +271,78 @@ app.post("/api/auth/profile/update", authenticateToken, async (req, res) => {
     res.json(safeUser);
   } catch (err) {
     res.status(500).json({ error: "Failed to update profile." });
+  }
+});
+
+// Create new user profile (Admin only)
+app.post("/api/users/create", authenticateToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden: Only console administrators can create user profiles." });
+  }
+
+  const { name, email, pw, role } = req.body;
+  if (!name || !email || !pw || !role) {
+    return res.status(400).json({ error: "All fields (name, email, passcode, role) are required." });
+  }
+
+  if (!email.includes("@") || !email.includes(".")) {
+    return res.status(400).json({ error: "Please enter a valid email address." });
+  }
+
+  try {
+    const existing = await db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase().trim());
+    if (existing) {
+      return res.status(400).json({ error: "A user profile with this email already exists." });
+    }
+
+    const now = new Date();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const joinedStr = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+    const av = name.split(" ").map(n => n[0]).join("").toUpperCase();
+
+    const newUser = {
+      name,
+      email: email.toLowerCase().trim(),
+      pw,
+      role: role.toLowerCase(),
+      av: av || "U",
+      joined: joinedStr,
+      status: "active",
+      avatar: null,
+      userStatus: "Active",
+      bio: `${role.charAt(0).toUpperCase() + role.slice(1)} Operator`
+    };
+
+    await db.users.insert(newUser);
+    await addAuditLog("INFO", `Admin created user profile: ${newUser.email} (${newUser.role})`);
+
+    const { pw: _, ...safeUser } = newUser;
+    res.json(safeUser);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create user profile." });
+  }
+});
+
+// Delete User Profile (Admin only)
+app.post("/api/users/:email/delete", authenticateToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden: Only console administrators can delete user profiles." });
+  }
+  const emailToDelete = req.params.email.toLowerCase().trim();
+  if (emailToDelete === req.user.email.toLowerCase().trim()) {
+    return res.status(400).json({ error: "Self-deletion is not allowed." });
+  }
+  try {
+    const success = await db.users.remove(u => u.email.toLowerCase() === emailToDelete);
+    if (success) {
+      await addAuditLog("INFO", `Admin deleted user profile: ${emailToDelete}`);
+      res.json({ success: true, message: `User profile ${emailToDelete} removed.` });
+    } else {
+      res.status(404).json({ error: "User profile not found." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete user profile." });
   }
 });
 

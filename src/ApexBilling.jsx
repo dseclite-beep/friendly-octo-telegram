@@ -9,7 +9,7 @@ export default function ApexBilling() {
   const [token, setToken] = useState(() => localStorage.getItem("apexbilling_token"));
   
   // Dashboard & Navigation states
-  const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard', 'settings', 'profile'
+  const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard', 'settings', 'profile', 'create-user'
   const [theme, setTheme] = useState(() => localStorage.getItem("apexbilling_theme") || "light");
   
   // Dynamic datasets from API
@@ -40,6 +40,15 @@ export default function ApexBilling() {
   const [profileName, setProfileName] = useState("");
   const [profilePass, setProfilePass] = useState("");
   const [profileMsg, setProfileMsg] = useState("");
+  
+  // New visual navigation & user management states
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [bioInput, setBioInput] = useState("");
+  const [createUserName, setCreateUserName] = useState("");
+  const [createUserEmail, setCreateUserEmail] = useState("");
+  const [createUserPass, setCreateUserPass] = useState("");
+  const [createUserRole, setCreateUserRole] = useState("support");
+  const [createUserMsg, setCreateUserMsg] = useState("");
 
   // Manager projection state
   const [projectedNewSubs, setProjectedNewSubs] = useState(10);
@@ -57,18 +66,19 @@ export default function ApexBilling() {
   const [formMsg, setFormMsg] = useState("");
 
   // Load available profiles from backend dynamically for the gateway selector
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        const res = await fetch("/api/auth/profiles");
-        if (res.ok) {
-          const data = await res.json();
-          setMockProfiles(data);
-        }
-      } catch (err) {
-        console.error("Failed to load profiles from backend:", err);
+  const fetchProfiles = async () => {
+    try {
+      const res = await fetch("/api/auth/profiles");
+      if (res.ok) {
+        const data = await res.json();
+        setMockProfiles(data);
       }
-    };
+    } catch (err) {
+      console.error("Failed to load profiles from backend:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchProfiles();
   }, []);
 
@@ -86,8 +96,135 @@ export default function ApexBilling() {
   useEffect(() => {
     if (user) {
       setProfileName(user.name);
+      setBioInput(user.bio || "");
     }
   }, [user]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const closeMenu = () => setIsDropdownOpen(false);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [isDropdownOpen]);
+
+  // Handle avatar upload as Base64 Data URL
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image must be smaller than 2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64data = reader.result;
+      try {
+        const res = await fetch("/api/auth/profile/update", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ name: user.name, avatar: base64data })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+          fetchProfiles();
+        } else {
+          alert("Failed to upload image.");
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle avatar removal
+  const handleRemoveAvatar = async () => {
+    try {
+      const res = await fetch("/api/auth/profile/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: user.name, avatar: null })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+        fetchProfiles();
+      }
+    } catch (err) {
+      console.error("Failed to remove avatar:", err);
+    }
+  };
+
+  // Handle status update
+  const handleStatusChange = async (newStatus) => {
+    try {
+      const res = await fetch("/api/auth/profile/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: user.name, userStatus: newStatus })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+        fetchProfiles();
+      }
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+  };
+
+  // Handle user profile creation by Admin
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateUserMsg("");
+
+    if (!createUserName || !createUserEmail || !createUserPass || !createUserRole) {
+      setCreateUserMsg("Error: All fields are required.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/users/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: createUserName,
+          email: createUserEmail,
+          pw: createUserPass,
+          role: createUserRole
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setCreateUserMsg(`Success: Account created successfully for ${data.name}.`);
+        setCreateUserName("");
+        setCreateUserEmail("");
+        setCreateUserPass("");
+        setCreateUserRole("support");
+        fetchProfiles();
+        fetchOverview(); // refresh logs
+      } else {
+        setCreateUserMsg(`Error: ${data.error || "Failed to create user."}`);
+      }
+    } catch (err) {
+      setCreateUserMsg("Error: Failed to contact user registry server.");
+    }
+  };
 
   // Fetch overview data from Express backend
   const fetchOverview = async (authToken) => {
@@ -318,7 +455,7 @@ export default function ApexBilling() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ name: profileName, pw: profilePass })
+        body: JSON.stringify({ name: profileName, pw: profilePass, bio: bioInput })
       });
 
       if (res.ok) {
@@ -326,6 +463,7 @@ export default function ApexBilling() {
         setUser(data);
         setProfilePass("");
         setProfileMsg("Success: Account credentials updated successfully.");
+        fetchProfiles();
       } else {
         const data = await res.json();
         setProfileMsg(`Error: ${data.error || "Failed to save profile."}`);
@@ -404,52 +542,85 @@ export default function ApexBilling() {
     let title = "Security Event";
     let desc = msg;
     let type = "info"; // info, success, warning, error
-    let icon = "🛡️";
+    let icon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
 
     if (lower.includes("user auth success")) {
       title = "Session Established";
       type = "success";
-      icon = "🔑";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       const match = msg.match(/success:\s*([^\s(]+)/);
       const email = match ? match[1] : "user";
       desc = `Operator (${email}) signed in successfully.`;
     } else if (lower.includes("failed login")) {
       title = "Blocked Login Attempt";
       type = "warning";
-      icon = "⚠️";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4m0 4h.01" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       const match = msg.match(/email:\s*([^\s]+)/);
       const email = match ? match[1] : "unknown";
       desc = `Failed sign-in attempt detected for: ${email}`;
     } else if (lower.includes("created invoice")) {
       title = "New Invoice Registered";
       type = "success";
-      icon = "📝";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       const match = msg.match(/invoice\s*(INV-\d+)/i);
       const invNo = match ? match[1] : "invoice";
       desc = `Invoice ${invNo} added to the ledger databases.`;
     } else if (lower.includes("deleted invoice")) {
       title = "Invoice Record Deleted";
       type = "error";
-      icon = "🗑️";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       const match = msg.match(/invoice\s*(INV-\d+)/i);
       const invNo = match ? match[1] : "invoice";
       desc = `Invoice ${invNo} permanently purged by administrator.`;
     } else if (lower.includes("profile updated")) {
       title = "Credentials Modified";
       type = "info";
-      icon = "👤";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm8-2h6m-3-3v6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       const match = msg.match(/for\s*([^\s]+)/);
       const email = match ? match[1] : "user";
       desc = `Account details updated for ${email}.`;
     } else if (lower.includes("settings updated")) {
       title = "Configurations Adjusted";
       type = "info";
-      icon = "⚙️";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       desc = "Billing terms and currency parameters modified.";
     } else if (lower.includes("rate limit")) {
       title = "Traffic Throttle Alert";
       type = "warning";
-      icon = "🚦";
+      icon = (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="log-icon-svg">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
       desc = "API traffic threshold approached on system gateway.";
     }
 
@@ -520,7 +691,16 @@ export default function ApexBilling() {
                       onClick={() => handleLogin(null, p)}
                     >
                       <div className="gateway-profile-header">
-                        <span className="gateway-profile-name">{p.name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div className="gateway-avatar-circle">
+                            {p.avatar ? (
+                              <img src={p.avatar} alt="Avatar" className="gateway-avatar-img" />
+                            ) : (
+                              p.name.split(" ").map(n => n[0]).join("")
+                            )}
+                          </div>
+                          <span className="gateway-profile-name">{p.name}</span>
+                        </div>
                         <span className="gateway-profile-badge" style={{ backgroundColor: badgeColor }}>{p.role.toUpperCase()}</span>
                       </div>
                       <p className="gateway-profile-desc">{roleDesc}</p>
@@ -553,8 +733,141 @@ export default function ApexBilling() {
           </div>
           <div className="brand-text">
             <h1>ApexBilling // System Console</h1>
-            <p>Session: <strong>{user?.name || "Initializing..."}</strong> · <span style={{ color: "var(--accent-green-primary)", fontWeight: 700 }}>{(user?.role || "user").toUpperCase()}</span></p>
           </div>
+          
+          {user && (
+            <div className="profile-dropdown-container">
+              <button 
+                className="profile-dropdown-trigger" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDropdownOpen(!isDropdownOpen);
+                }}
+              >
+                <div className="header-avatar-circle">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="header-avatar-img" />
+                  ) : (
+                    user.av || user.name.split(" ").map(n => n[0]).join("")
+                  )}
+                </div>
+                <span className="status-dot-indicator" style={{ backgroundColor: user.userStatus === "Away" ? "#f59e0b" : user.userStatus === "Focusing" ? "#ef4444" : "#10b981" }}></span>
+                <span className="trigger-name">{user.name.split(" ")[0]}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.7 }}>
+                  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              
+              {isDropdownOpen && (
+                <div className="premium-user-dropdown" onClick={(e) => e.stopPropagation()}>
+                  <div className="dropdown-user-header">
+                    <div className="dropdown-avatar-circle">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt="Avatar" className="dropdown-avatar-img" />
+                      ) : (
+                        user.av || user.name.split(" ").map(n => n[0]).join("")
+                      )}
+                    </div>
+                    <div className="dropdown-user-info">
+                      <div className="dropdown-name-row">
+                        <span className="dropdown-user-name">{user.name}</span>
+                        <span className="dropdown-role-badge">{user.role.toUpperCase()}</span>
+                      </div>
+                      <span className="dropdown-user-email">{user.email}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  <div className="dropdown-status-picker">
+                    <span className="picker-title">Set Console Status</span>
+                    <div className="status-options-row">
+                      <button 
+                        className={`status-opt-btn ${user.userStatus === "Active" ? "selected" : ""}`}
+                        onClick={() => handleStatusChange("Active")}
+                      >
+                        <span className="status-dot active-dot"></span> Active
+                      </button>
+                      <button 
+                        className={`status-opt-btn ${user.userStatus === "Away" ? "selected" : ""}`}
+                        onClick={() => handleStatusChange("Away")}
+                      >
+                        <span className="status-dot away-dot"></span> Away
+                      </button>
+                      <button 
+                        className={`status-opt-btn ${user.userStatus === "Focusing" ? "selected" : ""}`}
+                        onClick={() => handleStatusChange("Focusing")}
+                      >
+                        <span className="status-dot focus-dot"></span> Focus
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  <div className="dropdown-nav-list">
+                    <button 
+                      className={`dropdown-nav-item ${activeTab === "dashboard" ? "active" : ""}`}
+                      onClick={() => { setActiveTab("dashboard"); setIsDropdownOpen(false); }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="nav-item-icon">
+                        <rect x="3" y="3" width="7" height="9" rx="1"/>
+                        <rect x="14" y="3" width="7" height="5" rx="1"/>
+                        <rect x="14" y="12" width="7" height="9" rx="1"/>
+                        <rect x="3" y="16" width="7" height="5" rx="1"/>
+                      </svg>
+                      Dashboard Overview
+                    </button>
+                    <button 
+                      className={`dropdown-nav-item ${activeTab === "profile" ? "active" : ""}`}
+                      onClick={() => { setActiveTab("profile"); setIsDropdownOpen(false); }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="nav-item-icon">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      Profile Settings
+                    </button>
+                    <button 
+                      className={`dropdown-nav-item ${activeTab === "settings" ? "active" : ""}`}
+                      onClick={() => { setActiveTab("settings"); setIsDropdownOpen(false); }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="nav-item-icon">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                      </svg>
+                      App Configurations
+                    </button>
+                    {user.role === "admin" && (
+                      <button 
+                        className={`dropdown-nav-item ${activeTab === "create-user" ? "active" : ""}`}
+                        onClick={() => { setActiveTab("create-user"); setIsDropdownOpen(false); }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="nav-item-icon">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <line x1="19" y1="8" x2="19" y2="14" />
+                          <line x1="16" y1="11" x2="22" y2="11" />
+                        </svg>
+                        Create User Profile
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  <div className="dropdown-footer-actions">
+                    <button className="dropdown-signout-btn" onClick={() => { setIsDropdownOpen(false); handleLogout(); }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Sign Out Console
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="header-actions">
           <div className="system-status">
@@ -588,26 +901,13 @@ export default function ApexBilling() {
               </>
             )}
           </button>
-
-          <button className="logout-btn" onClick={handleLogout}>Disconnect Session</button>
         </div>
       </header>
 
       {/* Main Grid */}
       <main className="dash-content">
         
-        {/* Workspace tabs navigation */}
-        <div className="workspace-tabs">
-          <button className={`tab-btn ${activeTab === "dashboard" ? "active" : ""}`} onClick={() => setActiveTab("dashboard")}>
-            Dashboard
-          </button>
-          <button className={`tab-btn ${activeTab === "profile" ? "active" : ""}`} onClick={() => setActiveTab("profile")}>
-            User Profile
-          </button>
-          <button className={`tab-btn ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>
-            App Settings
-          </button>
-        </div>
+
 
         {/* TAB 1: DASHBOARD VIEW */}
         {activeTab === "dashboard" && (
@@ -1039,16 +1339,46 @@ export default function ApexBilling() {
             {/* Left Side: Avatar Card */}
             <div className="profile-avatar-card card">
               <div className="profile-avatar-circle">
-                {user?.av || (user?.name ? user.name.split(" ").map(n => n[0]).join("") : "U")}
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="profile-avatar-img" />
+                ) : (
+                  user?.av || (user?.name ? user.name.split(" ").map(n => n[0]).join("") : "U")
+                )}
               </div>
               <h3>{user?.name}</h3>
-              <p>{user?.role}</p>
+              <p>{user?.role.toUpperCase()}</p>
+
+              {/* Avatar Upload Actions */}
+              <div className="avatar-upload-actions">
+                <input 
+                  type="file" 
+                  id="avatarFileInput" 
+                  accept="image/*" 
+                  onChange={handleAvatarUpload} 
+                  style={{ display: "none" }} 
+                />
+                <label htmlFor="avatarFileInput" className="upload-avatar-trigger-btn">
+                  Upload Photo
+                </label>
+                {user?.avatar && (
+                  <button type="button" className="remove-avatar-btn" onClick={handleRemoveAvatar}>
+                    Remove Photo
+                  </button>
+                )}
+              </div>
 
               <div className="profile-details-list">
                 <div className="profile-detail-item">
                   <span className="profile-detail-label">Status</span>
                   <span className="profile-detail-value" style={{ color: "var(--color-success)" }}>
                     {user?.status ? user.status.toUpperCase() : "ACTIVE"}
+                  </span>
+                </div>
+                <div className="profile-detail-item">
+                  <span className="profile-detail-label">Console Status</span>
+                  <span className="profile-detail-value" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span className={`status-dot ${user?.userStatus === "Away" ? "away-dot" : user?.userStatus === "Focusing" ? "focus-dot" : "active-dot"}`}></span>
+                    {user?.userStatus || "Active"}
                   </span>
                 </div>
                 <div className="profile-detail-item">
@@ -1065,7 +1395,7 @@ export default function ApexBilling() {
             {/* Right Side: Edit Profile Form */}
             <div className="card">
               <h2>Profile Management & Security</h2>
-              <p className="card-desc">Update your display information and console authorization passcode</p>
+              <p className="card-desc">Update your display information, profile biography, and console authorization passcode</p>
               
               <form onSubmit={handleSaveProfile} style={{ marginTop: 20 }}>
                 <div className="form-group">
@@ -1076,6 +1406,27 @@ export default function ApexBilling() {
                     onChange={(e) => setProfileName(e.target.value)} 
                     placeholder="Name"
                     required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Biography / Notes</label>
+                  <textarea 
+                    value={bioInput} 
+                    onChange={(e) => setBioInput(e.target.value)} 
+                    placeholder="Describe your role, team, or ledger responsibilities..."
+                    rows={4}
+                    style={{ 
+                      width: "100%", 
+                      background: "var(--input-bg)", 
+                      border: "1px solid var(--border-card)", 
+                      borderRadius: "8px", 
+                      padding: "12px 16px", 
+                      color: "var(--txt-primary)", 
+                      fontFamily: "var(--font-sans)",
+                      fontSize: "0.825rem",
+                      resize: "none",
+                      outline: "none"
+                    }}
                   />
                 </div>
                 <div className="form-group">
@@ -1183,6 +1534,65 @@ export default function ApexBilling() {
 
               <button type="submit" className="submit-invoice-btn" style={{ maxWidth: 200 }}>
                 Save Settings Records
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 4: ADMIN USER CREATION VIEW */}
+        {activeTab === "create-user" && user?.role === "admin" && (
+          <div className="card" style={{ maxWidth: 600, margin: "0 auto", textAlign: "left" }}>
+            <h2>Console Account Registry Portal</h2>
+            <p className="card-desc">Create a new operator profile with defined administrative, managerial, or support capabilities.</p>
+            
+            <form onSubmit={handleCreateUser} style={{ marginTop: 24 }}>
+              <div className="form-group">
+                <label>Full Operator Name</label>
+                <input 
+                  type="text" 
+                  value={createUserName} 
+                  onChange={(e) => setCreateUserName(e.target.value)} 
+                  placeholder="E.g., John Doe"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Console Email Address</label>
+                <input 
+                  type="email" 
+                  value={createUserEmail} 
+                  onChange={(e) => setCreateUserEmail(e.target.value)} 
+                  placeholder="E.g., john.doe@apexbilling.com"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Console Access Passcode</label>
+                <input 
+                  type="password" 
+                  value={createUserPass} 
+                  onChange={(e) => setCreateUserPass(e.target.value)} 
+                  placeholder="••••••••••••" 
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Console Permissions Role</label>
+                <select value={createUserRole} onChange={(e) => setCreateUserRole(e.target.value)}>
+                  <option value="admin">Admin (Full Control)</option>
+                  <option value="manager">Manager (Projections & Analysis)</option>
+                  <option value="support">Support (Operations & Logging)</option>
+                </select>
+              </div>
+
+              {createUserMsg && (
+                <div className={`form-feedback ${createUserMsg.startsWith("Success") ? "success" : "error"}`}>
+                  {createUserMsg}
+                </div>
+              )}
+
+              <button type="submit" className="submit-invoice-btn" style={{ marginTop: 8 }}>
+                Register Account Profile
               </button>
             </form>
           </div>

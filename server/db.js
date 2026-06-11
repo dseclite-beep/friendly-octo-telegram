@@ -84,7 +84,10 @@ const defaultUsers = [
     role: "admin",
     av: "LV",
     joined: "Jan 12, 2025",
-    status: "active"
+    status: "active",
+    avatar: null,
+    userStatus: "Active",
+    bio: "ApexBilling Principal Console Administrator"
   },
   {
     email: "finance_manager@apexbilling.com",
@@ -93,7 +96,10 @@ const defaultUsers = [
     role: "manager",
     av: "SM",
     joined: "Feb 5, 2025",
-    status: "active"
+    status: "active",
+    avatar: null,
+    userStatus: "Active",
+    bio: "SaaS Growth and Projection Coordinator"
   },
   {
     email: "support_agent@apexbilling.com",
@@ -102,7 +108,10 @@ const defaultUsers = [
     role: "support",
     av: "LT",
     joined: "Mar 1, 2025",
-    status: "active"
+    status: "active",
+    avatar: null,
+    userStatus: "Active",
+    bio: "Customer Success & Ledger Desk Operator"
   }
 ];
 
